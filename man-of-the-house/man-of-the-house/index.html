@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Man of the House</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles-views.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <path d="M4 15 16 5l12 10v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" fill="currentColor"/>
+          <path d="m11 18 4 4 7-8" fill="none" stroke="var(--logo-check)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <h1>Man of the House</h1>
+          <p class="tagline">Keep the house, car, yard and family ready.</p>
+        </div>
+      </div>
+      <div class="header-actions" id="header-actions">
+        <button type="button" class="btn primary" id="add-btn">+ Add task</button>
+        <button type="button" class="btn" id="settings-btn" aria-haspopup="dialog">Settings</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="app" hidden>
+    <div class="wrap">
+      <section id="today-strip" class="today-strip" aria-label="Today"></section>
+    </div>
+    <nav id="nav" class="main-nav" aria-label="Sections"></nav>
+    <main id="main" class="wrap" tabindex="-1"></main>
+  </div>
+  <div id="wizard" class="wrap" hidden></div>
+
+  <div class="status" id="status" role="status" aria-live="polite" aria-atomic="false"></div>
+
+  <dialog id="task-dialog" aria-labelledby="task-dialog-title"></dialog>
+  <dialog id="complete-dialog" aria-labelledby="complete-dialog-title"></dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-dialog-title"></dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-dialog-title"></dialog>
+
+  <noscript><p class="wrap">This app needs JavaScript turned on.</p></noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
