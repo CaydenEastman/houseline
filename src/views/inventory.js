@@ -239,7 +239,7 @@ function itemForm(ctx, rerender) {
       h("label", { for: "v-item-notes", text: "Notes" }),
       h("textarea", { id: "v-item-notes", rows: "3", maxlength: "2000", "data-fk": "v-item-notes", oninput: bind("notes"), onchange: bind("notes"), text: d.notes })),
     h("div", { class: "field" },
-      h("label", { for: "v-item-photos", text: `Photos (${d.photoIds.length} of ${MAX_PHOTOS})` }),
+      h("label", { for: "v-item-photos", text: `Photos of the item, model plate, receipt or manual page (${d.photoIds.length} of ${MAX_PHOTOS})` }),
       d.photoIds.length < MAX_PHOTOS
         ? h("input", { id: "v-item-photos", type: "file", accept: "image/*", multiple: true, "data-fk": "v-item-photos", onchange: onFiles, disabled: d.busy ? true : null })
         : h("p", { id: "v-item-photos", class: "v-hint", tabindex: "-1", "data-fk": "v-item-photos", text: "Photo limit reached. Remove one to add another." }),

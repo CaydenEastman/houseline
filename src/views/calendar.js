@@ -2,7 +2,7 @@
 // Plain about what the export can't do (no live feed, no email/push).
 import * as ICS from "../ics.js";
 import * as CAL from "../calendar.js";
-import { addDays } from "../logic.js";
+import { addDays, snoozeTask } from "../logic.js";
 import { isoToLocalDate } from "../dom.js";
 
 export const id = "calendar";
@@ -256,6 +256,14 @@ function buildGrid(ctx, rerender) {
         type: "button", class: cls.join(" "), "data-day": iso, "data-fk": `v-day-${iso}`,
         tabindex: iso === focusDay ? "0" : "-1", "aria-label": label, "aria-pressed": iso === G.selected ? "true" : "false",
         "aria-current": iso === today ? "date" : null, onclick: pick(iso),
+        ondragover: iso > today ? (ev) => { ev.preventDefault(); } : null,
+        ondrop: iso > today ? (ev) => {
+          ev.preventDefault();
+          let tid = ""; try { tid = ev.dataTransfer.getData("text/plain"); } catch { /* none */ }
+          if (!tid || typeof ctx.commit !== "function") return;
+          try { ctx.commit(snoozeTask(ctx.getState(), tid, iso, today), `Moved to ${iso}`); }
+          catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that."); }
+        } : null,
       },
       h("span", { class: "v-daynum", "aria-hidden": "true", text: String(+iso.slice(8, 10)) }),
       h("span", { class: "v-chips" }, chips, more),
@@ -285,7 +293,14 @@ function buildGrid(ctx, rerender) {
   const row = (e) => {
     const task = e.type === "task" ? taskOf(e.taskId) : null;
     const tags = [e.carried ? "carried forward" : null, e.estimated ? "estimated date" : null, e.projected ? "projected repeat" : null].filter(Boolean);
-    return h("li", { class: `v-evt v-st-${e.status || "none"}` },
+    const movable = !!task && !e.projected && e.type === "task" && typeof ctx.commit === "function";
+    const move = (iso) => {
+      try { ctx.commit(snoozeTask(ctx.getState(), task.id, iso, today), `Moved to ${iso}: ${task.title}`); }
+      catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that."); }
+    };
+    const dateIn = movable ? h("input", { type: "date", id: `v-mv-${e.id}`, min: addDays(today, 1), max: addDays(today, 365) }) : null;
+    return h("li", { class: `v-evt v-st-${e.status || "none"}`, draggable: movable ? "true" : null,
+      ondragstart: movable ? (ev) => { try { ev.dataTransfer.setData("text/plain", task.id); ev.dataTransfer.effectAllowed = "move"; } catch { /* no dnd */ } } : null },
       h("span", { class: `v-chip v-st-${e.status || "none"} v-cat-${e.category || "none"}`, "aria-hidden": "true", text: symbolOf(e) }),
       h("div", { class: "v-evt-main" },
         h("p", { class: "v-evt-title", text: e.title }),
@@ -294,7 +309,10 @@ function buildGrid(ctx, rerender) {
       task ? h("div", { class: "v-actions v-evt-actions" },
         !e.projected && typeof ctx.completeTask === "function"
           ? h("button", { type: "button", class: "btn v-small", text: "Done", "aria-label": `Done: ${e.title}`, "data-fk": `v-evt-done-${e.id}`, onclick: () => ctx.completeTask(task.id) }) : null,
-        h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit: ${e.title}`, "data-fk": `v-evt-edit-${e.id}`, onclick: () => ctx.openTaskForm(task) })) : null);
+        h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit: ${e.title}`, "data-fk": `v-evt-edit-${e.id}`, onclick: () => ctx.openTaskForm(task) })) : null,
+      movable ? h("div", { class: "v-move" },
+        h("label", { for: `v-mv-${e.id}`, class: "v-hint", text: "Move to a later day:" }), dateIn,
+        h("button", { type: "button", class: "btn v-small", text: "Move", "aria-label": `Move ${e.title}`, onclick: () => { if (dateIn.value) move(dateIn.value); else if (typeof ctx.toast === "function") ctx.toast("Pick a date first."); } })) : null);
   };
   const announce = sel ? `${longDay(sel)}: ${selList.length === 0 ? "nothing scheduled" : plural(selList.length, "item")}` : "No day selected";
   const panel = h("section", { class: "v-day-panel", "aria-labelledby": "v-day-h" },
@@ -322,7 +340,7 @@ function buildGrid(ctx, rerender) {
     h("div", { class: "v-cal-scroll" }, table),
     legend,
     panel,
-    h("p", { class: "v-hint", text: "Repeats are projected assuming each task is done on time. Mileage dates are estimates from your odometer." }));
+    h("p", { class: "v-hint", text: "Repeats are projected assuming each task is done on time. Mileage dates are estimates from your odometer. Moving a task to a later day snoozes it until then; drag a task from the day list onto a future day, or use the date box." }));
 }
 
 function build(ctx, rerender) {

@@ -146,7 +146,8 @@ test('2 devices: simultaneous saves with a ttl lock capability keep both adds', 
   db.lock = async ({ holder, ttlMs }) => { const t = Date.now(); if (held && held.until > t && held.holder !== holder) return { acquired: false }; held = { holder, until: t + ttlMs }; return { acquired: true }; };
   const { A, B } = await twoDevices(db, mkState({ tasks: [tk('a')] }), { lockRetryMs: 40 });
   await Promise.all([A.store.save({ ...A.state, tasks: [...A.state.tasks, tk('fromA')] }), B.store.save({ ...B.state, tasks: [...B.state.tasks, tk('fromB')] })]);
-  await sleep(500);
+  // Poll instead of one fixed sleep so a busy machine running other test files can't make this flaky.
+  for (let i = 0; i < 40; i++) { const got = ids((await cloudState(db)).tasks); if (got.length === 3) break; await sleep(100); }
   assert.deepEqual(ids((await cloudState(db)).tasks).sort(), ['a', 'fromA', 'fromB']);
 });
 test('2 devices: simultaneous saves WITHOUT any lock (known race, lost update possible)', { todo: 'no lock capability => read-merge-write is not atomic' }, async () => {

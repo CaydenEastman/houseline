@@ -3,10 +3,12 @@ import { h as hBase, localToday, isoToLocalDate, fmtDate, safeUrl } from "./dom.
 import { CATEGORIES } from "./templates.js";
 import {
   statusOf, dueInfo, sortTasks, summary, markDone, skipTask, snoozeTask, unsnoozeTask,
-  addTask, updateTask, deleteTask, searchTasks, warrantyAlerts, addDays,
+  addTask, updateTask, deleteTask, searchTasks, warrantyAlerts, addDays, updateProfile, HOME_AGE_TYPES,
 } from "./logic.js";
 import { validateState, exportJSON, importJSON } from "./storage.js";
 import { readiness } from "./readiness.js";
+import { ageTasks, HOME_AGE_LABEL } from "./templates.js";
+import { importTasksCSV } from "./importcsv.js";
 import { downscaleImage, newPhotoId } from "./photos.js";
 import { renderWizard, resetWizard } from "./wizard.js";
 import * as historyView from "./views/history.js";
@@ -14,6 +16,9 @@ import * as inventoryView from "./views/inventory.js";
 import * as vehiclesView from "./views/vehicles.js";
 import * as emergencyView from "./views/emergency.js";
 import * as calendarView from "./views/calendar.js";
+import * as todayView from "./views/today.js";
+import * as insightsView from "./views/insights.js";
+import * as vendorsView from "./views/vendors.js";
 
 export { localToday };
 
@@ -22,12 +27,15 @@ const CAT_ICON = { car: "\u{1F697}", house: "\u{1F3E0}", yard: "\u{1F33F}", emer
 const STATUS_LABEL = { overdue: "Overdue", "due-soon": "Due soon", ok: "On track", snoozed: "Snoozed" };
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const TABS = [
+  { id: "today", label: "Today", icon: "\u{1F3E1}", view: todayView },
   { id: "tasks", label: "Tasks", icon: "✅" },
   { id: "history", label: historyView.label || "History", icon: "\u{1F4D6}", view: historyView },
   { id: "inventory", label: inventoryView.label || "Inventory", icon: "\u{1F4E6}", view: inventoryView },
   { id: "vehicles", label: vehiclesView.label || "Vehicles", icon: "\u{1F697}", view: vehiclesView },
+  { id: "vendors", label: vendorsView.label || "Vendors", icon: "\u{1F4DE}", view: vendorsView },
   { id: "emergency", label: emergencyView.label || "Emergency", icon: "\u{1F6DF}", view: emergencyView },
   { id: "calendar", label: calendarView.label || "Calendar", icon: "\u{1F4C5}", view: calendarView },
+  { id: "insights", label: insightsView.label || "Insights", icon: "\u{1F4CA}", view: insightsView },
 ];
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -53,7 +61,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
   let state = initial;
   let today = localToday();
-  let active = "tasks";
+  let active = "today";
   let rerunning = false;
   let undo = null; // { state }
   let undoToast = null;
@@ -119,11 +127,30 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   // ---------- state ----------
+  // ---------- change log + restore points (this device only) ----------
+  const LOG_KEY = "motH.log", SNAP_KEY = "motH.snaps";
+  const SNAP_MAX = 5, SNAP_BYTES = 120_000, LOG_MAX = 40;
+  const lsGet = (k) => { try { return JSON.parse(doc.defaultView.localStorage.getItem(k)) || []; } catch { return []; } };
+  const lsSet = (k, v) => { try { doc.defaultView.localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+  function recordChange(message, prev) {
+    try {
+      const at = Date.now();
+      const entry = { at, msg: String(message).slice(0, 140) };
+      lsSet(LOG_KEY, [entry, ...lsGet(LOG_KEY)].slice(0, LOG_MAX));
+      const json = JSON.stringify(prev);
+      if (json.length <= SNAP_BYTES) {
+        let snaps = [{ at, msg: entry.msg, json }, ...lsGet(SNAP_KEY)].slice(0, SNAP_MAX);
+        while (snaps.length && !lsSet(SNAP_KEY, snaps)) snaps = snaps.slice(0, -1); // storage full: keep fewer
+      }
+    } catch { /* logging is best-effort */ }
+  }
+
   function commit(next, message, { undoable = true } = {}) {
     try { validateState(next); } catch (e) { toast("Could not save that change: " + errMsg(e), { error: true }); return false; }
     const prev = state;
     state = next;
     try { const p = store.save(state); if (p && p.catch) p.catch(() => {}); } catch (e) { toast("Could not save: " + errMsg(e), { error: true }); }
+    if (message) recordChange(message, prev);
     if (undoable) undo = { state: prev };
     else { undo = null; if (undoToast) undoToast._remove(); }
     render();
@@ -167,6 +194,17 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   const ctx = {
     doc, h, getState: () => state, commit, today: () => today, store, me, names,
     openTaskForm: (t) => openTaskForm(t || null), toast: (m) => void toast(m), photos, saveFile,
+    newId,
+    markManyDone: (ids) => {
+      let next = state, n = 0;
+      for (const id of ids) {
+        try { next = markDone(next, id, today, { by: me.id || null }); n++; } catch { /* skip tasks that vanished */ }
+      }
+      if (!n) { toast("Nothing to mark.", { error: true }); return false; }
+      return commit(next, `Marked ${plural(n, "task")} done`);
+    },
+    personName: (id) => personName(id),
+    setView: (id, focus) => setView(id, !!focus),
     // Opens the same "Complete task" dialog as the Done button on the Tasks tab; unknown ids are ignored.
     completeTask: (taskId) => {
       const task = state.tasks.find((t) => t.id === taskId);
@@ -720,6 +758,30 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     openDialog(els.task, form, { trigger, focus: "#f-title" });
   }
 
+  // ---------- look and feel (per-device) ----------
+  const LOOK_KEY = "motH.look";
+  const look = { theme: "auto", text: "normal" };
+  function readLook() {
+    try {
+      const raw = doc.defaultView && doc.defaultView.localStorage && doc.defaultView.localStorage.getItem(LOOK_KEY);
+      const o = raw ? JSON.parse(raw) : null;
+      if (o && ["auto", "light", "dark"].includes(o.theme)) look.theme = o.theme;
+      if (o && ["normal", "large", "xl"].includes(o.text)) look.text = o.text;
+    } catch { /* keep defaults */ }
+  }
+  function applyLook() {
+    const root = doc.documentElement;
+    if (!root || !root.setAttribute) return;
+    if (look.theme === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", look.theme);
+    if (look.text === "normal") root.removeAttribute("data-text"); else root.setAttribute("data-text", look.text);
+  }
+  function setLook(patch) {
+    Object.assign(look, patch);
+    applyLook();
+    try { doc.defaultView.localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* not saved; still applied */ }
+  }
+  readLook(); applyLook();
+
   // ---------- Settings ----------
   function openSettings(trigger) {
     const out = h("div", { class: "settings-out" });
@@ -764,12 +826,87 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       area.focus();
     };
 
+    const csvBox = h("textarea", { id: "s-csv", rows: "3", placeholder: "Paste CSV text, or choose a file" });
+    const csvOut = h("div", { class: "settings-out", role: "status" });
+    const csvFile = h("input", { type: "file", id: "s-csv-file", accept: ".csv,text/csv,text/plain", hidden: true });
+    function doCSV(text) {
+      if (!String(text || "").trim()) { toast("Paste some CSV text first.", { error: true }); return; }
+      let r;
+      try { r = importTasksCSV(state, text, newId, today); } catch (e) { csvOut.replaceChildren(h("p", { class: "form-error", role: "alert", text: errMsg(e, "Couldn't read that.") })); return; }
+      const skipText = r.skipped.slice(0, 6).map((x) => `row ${x.row}: ${x.reason}`).join("; ") + (r.skipped.length > 6 ? `; and ${r.skipped.length - 6} more` : "");
+      if (!r.added) { csvOut.replaceChildren(h("p", { class: "form-error", role: "alert", text: `Nothing was imported. ${skipText}` })); return; }
+      closeDialog(els.settings);
+      commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length}` : ""}.`);
+    }
+    csvFile.addEventListener("change", async () => {
+      const f = csvFile.files && csvFile.files[0]; csvFile.value = "";
+      if (!f) return;
+      try { doCSV(await f.text()); } catch { toast("Could not read that file.", { error: true }); }
+    });
+    function changeLog() {
+      const log = lsGet(LOG_KEY), snaps = lsGet(SNAP_KEY);
+      if (!log.length) return h("p", { class: "hint", text: "Nothing yet." });
+      return h("ul", { class: "v-log" }, log.slice(0, 10).map((e) => {
+        const snap = snaps.find((x) => x.at === e.at);
+        const when = new Date(e.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        return h("li", {}, h("span", { text: `${when}: ${e.msg}` }),
+          snap ? h("button", { type: "button", class: "btn v-small", text: "Restore", "aria-label": `Restore to just before: ${e.msg}`, onclick: async () => {
+            let restored;
+            try { restored = JSON.parse(snap.json); validateState(restored); } catch { toast("That restore point is damaged.", { error: true }); return; }
+            const ok = await confirmDialog({ title: "Restore this point?", message: `Your data goes back to just before “${e.msg}”. Later changes are replaced, and you can undo right after.`, confirmLabel: "Restore", danger: true });
+            if (!ok) return;
+            closeDialog(els.settings);
+            commit(restored, "Restored an earlier version.");
+          } }) : null);
+      }));
+    }
+
     const modeText = store.mode === "cloud"
       ? "Your data is saved to your account and syncs across your devices."
       : "Your data is saved on this device only." + (persistent ? "" : " Storage looks blocked, so changes may be lost when you close the page.");
 
     openDialog(els.settings, [
       h("h2", { id: "settings-dialog-title", text: "Settings" }),
+      h("section", { class: "set-sec" },
+        h("h3", { text: "Look" }),
+        h("div", { class: "field" }, h("label", { for: "s-theme", text: "Theme" }),
+          h("select", { id: "s-theme", onchange: (e) => setLook({ theme: e.target.value }) },
+            [["auto", "Match my device"], ["light", "Light"], ["dark", "Dark"]].map(([v, t]) => h("option", { value: v, text: t, selected: look.theme === v })))),
+        h("div", { class: "field" }, h("label", { for: "s-text", text: "Text size" }),
+          h("select", { id: "s-text", onchange: (e) => setLook({ text: e.target.value }) },
+            [["normal", "Normal"], ["large", "Large"], ["xl", "Extra large"]].map(([v, t]) => h("option", { value: v, text: t, selected: look.text === v })))),
+        h("p", { class: "hint", text: "These two are remembered on this device only." }),
+        h("div", { class: "field" }, h("label", { for: "s-climate", text: "Climate (for seasonal reminders)" }),
+          h("select", { id: "s-climate", onchange: (e) => { const next = guard(() => updateProfile(state, { climate: e.target.value })); if (next) commit(next, "Climate saved.", { undoable: false }); } },
+            [["cold", "Cold winters"], ["mild", "Mild year-round"], ["hot", "Hot summers"]].map(([v, t]) => h("option", { value: v, text: t, selected: ((state.profile && state.profile.climate) || "cold") === v }))))),
+      h("section", { class: "set-sec" },
+        h("h3", { text: "Home age and extra tasks" }),
+        h("div", { class: "field" }, h("label", { for: "s-age", text: "How old is your home?" }),
+          h("select", { id: "s-age", onchange: (e) => { const next = guard(() => updateProfile(state, { homeAge: e.target.value })); if (next) commit(next, null, { undoable: false }); } },
+            h("option", { value: "", text: "Not set", disabled: true, selected: !(state.profile && state.profile.homeAge) }),
+            HOME_AGE_TYPES.map((v) => h("option", { value: v, text: HOME_AGE_LABEL[v], selected: (state.profile && state.profile.homeAge) === v })))),
+        h("button", { type: "button", class: "btn", id: "s-age-add", text: "Add suggested tasks for my home's age", onclick: () => {
+          const age = state.profile && state.profile.homeAge;
+          if (!age) { toast("Pick your home's age first.", { error: true }); return; }
+          const list = ageTasks(age, state.tasks.map((t) => t.title), today);
+          if (!list.length) { toast("You already have all the suggested tasks."); return; }
+          let next = state;
+          for (const t of list) { const r = guard(() => addTask(next, t, newId)); if (r) next = r; }
+          closeDialog(els.settings);
+          commit(next, `Added ${plural(list.length, "suggested task")}.`);
+        } })),
+      h("section", { class: "set-sec" },
+        h("h3", { text: "Import tasks from a spreadsheet" }),
+        h("p", { class: "hint", text: "Save your sheet as CSV. Needs a header row with title and either every_days (a number) or every (like \"3 months\"). Optional: category, last_done (YYYY-MM-DD), notes." }),
+        csvBox,
+        h("div", { class: "row-panel-actions wrap-actions" },
+          h("button", { type: "button", class: "btn", text: "Choose CSV file", onclick: () => csvFile.click() }), csvFile,
+          h("button", { type: "button", class: "btn", id: "s-csv-go", text: "Import pasted CSV", onclick: () => doCSV(csvBox.value) })),
+        csvOut),
+      h("section", { class: "set-sec" },
+        h("h3", { text: "Recent changes" }),
+        h("p", { class: "hint", text: "Kept on this device. Restoring puts your data back the way it was just before that change, and you can undo the restore." }),
+        changeLog()),
       h("section", { class: "set-sec" },
         h("h3", { text: "Setup" }),
         h("p", { class: "hint", text: "Re-run setup after changing your home, adding a pool or buying a car. It only adds missing tasks; nothing is changed or removed." }),

@@ -227,3 +227,28 @@ export function seedFromProfile(profile, { vehicles = [], idFn, today } = {}) {
   }
   return out;
 }
+
+// ---- Extra tasks by home age (offered from Settings; not part of first-run setup) ----
+export const HOME_AGES = ["new", "mid", "old"];
+export const HOME_AGE_LABEL = { new: "Under 10 years", mid: "10 to 30 years", old: "Over 30 years" };
+const AGE_TASKS = [
+  { ages: ["new", "mid", "old"], title: "Check caulk and weatherstripping", category: "house", intervalDays: 365, notes: "Windows, doors, tubs and showers: reseal gaps and cracks." },
+  { ages: ["new", "mid", "old"], title: "Inspect foundation and grading", category: "house", intervalDays: 365, notes: "Look for cracks and make sure the ground slopes away from the house." },
+  { ages: ["mid", "old"], title: "Inspect water supply lines and shut-off valves", category: "house", intervalDays: 365, notes: "Replace braided hoses over 5-7 years old; exercise the shut-off valves." },
+  { ages: ["mid", "old"], title: "Test sump pump", category: "house", intervalDays: 180, notes: "Pour a bucket of water in the pit and confirm it runs and drains." },
+  { ages: ["mid", "old"], title: "Check attic insulation and ventilation", category: "house", intervalDays: 730, notes: "Look for gaps, moisture and pests." },
+  { ages: ["mid", "old"], title: "Have the water heater inspected or consider replacing it", category: "house", intervalDays: 365, notes: "Most last 8-12 years. Check the date on the label." },
+  { ages: ["old"], title: "Have the electrical panel and wiring inspected", category: "house", intervalDays: 1825, notes: "Older homes may have outdated panels or aluminum wiring." },
+  { ages: ["old"], title: "Test for radon", category: "house", intervalDays: 730, notes: "Use a test kit in the lowest lived-in level." },
+  { ages: ["old"], title: "Have the chimney and flue inspected", category: "house", intervalDays: 365, notes: "Do this before the heating season." },
+  { ages: ["old"], title: "Inspect sewer line", category: "house", intervalDays: 1095, notes: "A camera inspection can catch roots and cracks early." },
+  { ages: ["old"], title: "Check for lead paint and asbestos before any remodel", category: "house", intervalDays: 3650, notes: "Homes built before 1978 may contain lead paint." },
+];
+
+/** Suggested extra tasks for a home age, minus any whose title already exists. Returns task partials ready for addTask. */
+export function ageTasks(homeAge, existingTitles, today) {
+  if (!HOME_AGES.includes(homeAge)) return [];
+  const have = new Set((existingTitles || []).map((t) => String(t).toLowerCase()));
+  return AGE_TASKS.filter((t) => t.ages.includes(homeAge) && !have.has(t.title.toLowerCase()))
+    .map((t, i) => ({ title: t.title, category: t.category, kind: "interval", intervalDays: t.intervalDays, notes: t.notes, tags: ["home-age"], startDate: addDaysISO(today, 7 + ((i * 11) % 30)), custom: false }));
+}

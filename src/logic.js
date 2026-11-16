@@ -13,6 +13,8 @@ export const TASK_KINDS = ["interval", "annual", "mileage"];
 export const ITEM_KINDS = ["appliance", "hvac", "plumbing", "electrical", "paint", "exterior", "other"];
 export const SUPPLY_CATEGORIES = ["water", "food", "medical", "power", "tools", "docs", "other"];
 export const HOME_TYPES = ["house", "condo", "apartment"];
+export const CLIMATE_TYPES = ["cold", "mild", "hot"];
+export const HOME_AGE_TYPES = ["new", "mid", "old"];
 export const LIMITS = {
   title: 120, vehicleName: 80, notes: 2000, text: 500, name: 120, label: 100, tag: 40, tags: 20,
   links: 5, photos: 3, contacts: 12, assignee: 200, key: 40, unit: 40,
@@ -553,6 +555,7 @@ export function deleteItem(state, id) {
     ...state,
     items: state.items.filter((x) => x.id !== id),
     tasks: state.tasks.map((t) => (t.itemId === id ? { ...t, itemId: null } : t)),
+    ...(state.vendors ? { vendors: state.vendors.map((v) => (v.itemIds || []).includes(id) ? { ...v, itemIds: v.itemIds.filter((x) => x !== id) } : v) } : {}),
   };
 }
 
@@ -599,6 +602,48 @@ export function deleteSupply(state, id) {
   return { ...state, supplies: state.supplies.filter((x) => x.id !== id) };
 }
 
+
+// ---------- vendors / contractors ----------
+
+function normalizeVendor(raw) {
+  const itemIds = raw.itemIds == null ? [] : raw.itemIds;
+  if (!Array.isArray(itemIds) || itemIds.length > 50 || itemIds.some((x) => typeof x !== "string" || x === "")) throw new Error("Linked items must be a list of up to 50 item ids");
+  const email = str(raw.email, "Email", LIMITS.text);
+  if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) throw new Error("Email doesn't look right");
+  return {
+    id: String(raw.id),
+    name: str(raw.name, "Vendor name", LIMITS.name, { required: true }),
+    trade: str(raw.trade, "Trade", LIMITS.label),
+    phone: str(raw.phone, "Phone", LIMITS.label),
+    email,
+    notes: notesOf(raw.notes),
+    itemIds: [...new Set(itemIds)],
+  };
+}
+
+export function addVendor(state, partial, idFn) {
+  if (typeof idFn !== "function") throw new Error("addVendor requires an id generator function");
+  if (!partial || typeof partial !== "object") throw new Error("Vendor details are required");
+  const v = normalizeVendor({ ...partial, id: idFn() });
+  const vendors = state.vendors || [];
+  if (vendors.length >= 200) throw new Error("That's the maximum of 200 vendors");
+  if (vendors.some((x) => x.id === v.id)) throw new Error(`Duplicate vendor id: ${v.id}`);
+  return { ...state, vendors: [...vendors, v] };
+}
+
+export function updateVendor(state, id, patch) {
+  const i = (state.vendors || []).findIndex((x) => x.id === id);
+  if (i < 0) throw new Error(`Vendor not found: ${id}`);
+  if (!patch || typeof patch !== "object") throw new Error("Patch must be an object");
+  const next = normalizeVendor({ ...state.vendors[i], ...patch, id });
+  return { ...state, vendors: mapAt(state.vendors, i, () => next) };
+}
+
+export function deleteVendor(state, id) {
+  if (!(state.vendors || []).some((x) => x.id === id)) throw new Error(`Vendor not found: ${id}`);
+  return { ...state, vendors: state.vendors.filter((x) => x.id !== id) };
+}
+
 // ---------- profile / emergency ----------
 
 export function updateProfile(state, patch) {
@@ -616,6 +661,14 @@ export function updateProfile(state, patch) {
   if ("homeType" in patch) {
     if (!HOME_TYPES.includes(patch.homeType)) throw new Error(`Home type must be one of ${HOME_TYPES.join(", ")}`);
     p.homeType = patch.homeType;
+  }
+  if ("homeAge" in patch) {
+    if (!HOME_AGE_TYPES.includes(patch.homeAge)) throw new Error("Home age must be new, mid or old");
+    p.homeAge = patch.homeAge;
+  }
+  if ("climate" in patch) {
+    if (!CLIMATE_TYPES.includes(patch.climate)) throw new Error(`Climate must be one of ${CLIMATE_TYPES.join(", ")}`);
+    p.climate = patch.climate;
   }
   if ("householdSize" in patch) {
     const n = patch.householdSize;

@@ -52,14 +52,14 @@ test('wizard can be completed from stub DOM without throwing (Skip setup / Finis
   assert.ok(store.saved.length >= 1 && store.saved.at(-1).profile.setupDone === true);
   assert.ok(store.saved.at(-1).tasks.length > 10);
 });
-test('seeded state: all six tabs render without view errors', async () => {
+test('seeded state: all nine tabs render without view errors', async () => {
   const doc = makeDocument();
   await mount(doc, { store: fakeStore(), state: seeded() });
   assert.equal(doc.getElementById('app').hidden, false); assert.equal(doc.getElementById('wizard').hidden, true);
   const labels = doc.getElementById('nav').querySelectorAll('button').map((b) => b.textContent.replace(/[^\w ]/g, '').trim());
-  for (const l of ['Tasks', 'History', 'Inventory', 'Vehicles', 'Emergency', 'Calendar']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
+  for (const l of ['Today', 'Tasks', 'History', 'Inventory', 'Vehicles', 'Vendors', 'Emergency', 'Calendar', 'Insights']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
   const btns = doc.getElementById('nav').querySelectorAll('button');
-  assert.equal(btns.length, 6);
+  assert.equal(btns.length, 9);
   for (const b of btns) {
     b.click(); await sleep(5);
     assert.equal(doc.body.querySelectorAll('.view-error').length, 0, 'view error in tab ' + b.textContent + ': ' + doc.body.querySelectorAll('.view-error').map((e) => e.textContent).join('|'));

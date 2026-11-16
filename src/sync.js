@@ -120,7 +120,7 @@ function contentMap(main, hist) {
 }
 
 
-const ID_ARRAYS = ["tasks", "vehicles", "items", "supplies", "completions"];
+const ID_ARRAYS = ["tasks", "vehicles", "items", "supplies", "completions", "vendors"];
 const isPlain = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const same = (a, b) => canon(a) === canon(b);
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));

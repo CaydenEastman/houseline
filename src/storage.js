@@ -1,7 +1,7 @@
 // Persistence helpers. `storage` is any localStorage-like object (getItem/setItem).
 import { CATEGORIES } from "./templates.js";
 import {
-  isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES,
+  isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES, CLIMATE_TYPES, HOME_AGE_TYPES,
   MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG,
 } from "./logic.js";
 
@@ -10,7 +10,7 @@ export const BACKUP_KEY = STORAGE_KEY + ".corrupt";
 export const STATE_VERSION = 2;
 export const MAX_STATE_BYTES = 900_000;
 
-const TOP_KEYS = ["version", "profile", "vehicles", "items", "supplies", "tasks", "completions", "emergency"];
+const TOP_KEYS = ["version", "profile", "vehicles", "items", "supplies", "tasks", "completions", "emergency", "vendors"];
 const isObj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
 const isInt = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
 const isISO = isValidISO;
@@ -48,6 +48,8 @@ export function validateState(s) {
   need(HOME_TYPES.includes(pr.homeType), "profile.homeType is invalid");
   for (const k of ["hasYard", "hasPool", "hasTrailer", "hasPets"]) need(typeof pr[k] === "boolean", `profile.${k} must be a boolean`);
   need(isInt(pr.householdSize, 1, 20), "profile.householdSize must be a whole number from 1 to 20");
+  need(pr.homeAge === undefined || HOME_AGE_TYPES.includes(pr.homeAge), "profile.homeAge must be new, mid or old");
+  need(pr.climate === undefined || CLIMATE_TYPES.includes(pr.climate), "profile.climate must be cold, mild or hot");
 
   for (const k of ["vehicles", "items", "supplies", "tasks", "completions"]) {
     need(Array.isArray(s[k]), `State.${k} must be an array`);
@@ -65,6 +67,19 @@ export function validateState(s) {
       if (j > 0) need(e.date >= v.odometerLog[j - 1].date, `${p}.odometerLog must be in ascending date order`);
     });
   });
+
+  if (s.vendors !== undefined) {
+    need(Array.isArray(s.vendors) && s.vendors.length <= 200, "State.vendors must be a list of at most 200");
+    checkIds(s.vendors, "vendors");
+    s.vendors.forEach((v, i) => {
+      const p = `vendors[${i}]`;
+      need(typeof v.name === "string" && v.name.trim() !== "" && v.name.length <= LIMITS.name, `${p}.name must be 1-${LIMITS.name} characters`);
+      for (const k of ["trade", "phone"]) need(strMax(v[k], LIMITS.label), `${p}.${k} must be a string of at most ${LIMITS.label} characters`);
+      need(strMax(v.email, LIMITS.text), `${p}.email must be a string of at most ${LIMITS.text} characters`);
+      need(strMax(v.notes, LIMITS.notes), `${p}.notes must be a string of at most ${LIMITS.notes} characters`);
+      need(Array.isArray(v.itemIds) && v.itemIds.length <= 50 && v.itemIds.every((x) => typeof x === "string"), `${p}.itemIds must be a list of ids`);
+    });
+  }
 
   const iIds = checkIds(s.items, "items");
   s.items.forEach((it, i) => {

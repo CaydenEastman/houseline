@@ -176,3 +176,39 @@ textarea.v-pre { border: 1.5px solid var(--muted); resize: vertical; }
 .v-evt-title { font-weight: 700; overflow-wrap: anywhere; }
 .v-evt-actions { grid-column: 2; margin-top: 0; }
 .v-export { display: grid; gap: 1rem; }
+
+/* today / insights / vendors / calendar move */
+.v-score-row { display: flex; gap: 1rem; align-items: center; }
+.v-score-num { display: inline-flex; align-items: baseline; justify-content: center; gap: .15rem; min-width: 5.5rem; padding: .5rem .8rem; border-radius: 14px;
+  border: 3px solid var(--ok); background: var(--ok-bg); color: var(--ok); font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; }
+.v-score-num small { font-size: .9rem; font-weight: 700; }
+.v-score-ok .v-score-num { border-color: var(--soon); background: var(--soon-bg); color: var(--soon); }
+.v-score-needs-work .v-score-num { border-color: var(--overdue); background: var(--overdue-bg); color: var(--overdue); }
+.v-score-band { font-weight: 800; font-size: 1.1rem; }
+.v-fixes { margin: 0; padding-left: 1.2rem; display: grid; gap: .3rem; }
+.v-linkbtn { all: unset; cursor: pointer; color: var(--brand); text-decoration: underline; padding: .2rem 0; min-height: 2rem; box-sizing: border-box; }
+.v-linkbtn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.v-plain { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; }
+.v-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.v-table th, .v-table td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.v-table thead th { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.v-bad { color: var(--overdue); font-weight: 800; }
+.v-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.v-bars li { display: grid; grid-template-columns: 3.2rem 1fr auto; gap: .5rem; align-items: center; font-size: .9rem; }
+.v-bar-track { background: var(--surface-2); border-radius: 6px; height: .8rem; overflow: hidden; }
+.v-bar-fill { display: block; height: 100%; background: var(--brand); border-radius: 6px; }
+.v-bar-val { font-variant-numeric: tabular-nums; font-weight: 700; }
+.v-move { grid-column: 2; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.v-move input { font: inherit; min-height: 2.25rem; }
+.v-evt[draggable="true"] { cursor: grab; }
+.v-day[draggable], .v-day:active { cursor: pointer; }
+
+.v-quick-row { display: flex; gap: .5rem; }
+.v-quick-row input { flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg); border: 1.5px solid var(--muted); border-radius: 8px; padding: .55rem .65rem; min-height: 2.75rem; }
+.v-bulk { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.v-evt.v-evt-sel { grid-template-columns: auto auto 1fr; }
+.v-evt-sel .v-evt-actions, .v-evt-sel .v-move { grid-column: 3; }
+.v-sel-box { width: 1.4rem; height: 1.4rem; margin-top: .1rem; }
+.v-recap { white-space: pre-wrap; font-size: .95rem; background: var(--surface-2); border-radius: 10px; padding: .6rem .8rem; }
+.v-log { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; font-size: .9rem; }
+.v-log li { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
