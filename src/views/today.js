@@ -26,7 +26,7 @@ function build(ctx, rerender) {
   const go = (tab) => () => { if (typeof ctx.setView === "function") ctx.setView(tab, true); };
 
   const bandText = { great: "In great shape", ok: "Mostly on track", "needs-work": "Needs attention" }[sc.band];
-  const scoreCard = h("section", { class: `v-panel v-score v-score-${sc.band}`, "aria-labelledby": "v-score-h" },
+  const scoreCard = h("section", { class: `v-panel v-today-score v-score-${sc.band}`, "aria-labelledby": "v-score-h" },
     h("h3", { id: "v-score-h", class: "v-h3", text: "Home score" }),
     h("div", { class: "v-score-row" },
       h("div", { class: "v-score-num", role: "img", "aria-label": `Home score ${sc.score} out of 100, ${bandText}` },
@@ -35,9 +35,11 @@ function build(ctx, rerender) {
         h("p", { class: "v-score-band", text: bandText }),
         h("p", { class: "v-meta", text: `Maintenance ${sc.parts.maintenance} · Supplies ${sc.parts.supplies} · Emergency info ${sc.parts.info}` }))),
     sc.fixes.length
-      ? h("div", {}, h("h4", { class: "v-h5", text: "Best next steps" }),
-        h("ol", { class: "v-fixes" }, sc.fixes.map((f, i) => h("li", {},
-          h("button", { type: "button", class: "v-linkbtn", "data-fk": `v-fix-${i}`, text: f.text, onclick: go(f.tab) })))))
+      ? h("div", { class: "v-steps-wrap" }, h("h4", { class: "v-h5", text: "Best next steps" }),
+        h("ol", { class: "v-steps" }, sc.fixes.map((f, i) => h("li", {},
+          h("button", { type: "button", class: "v-step", "data-fk": `v-fix-${i}`, onclick: go(f.tab) },
+            h("span", { class: "v-step-n", "aria-hidden": "true", text: String(i + 1) }),
+            h("span", { class: "v-step-text", text: f.text }))))))
       : h("p", { class: "v-hint", text: "Nothing urgent. Nice work." }));
 
   const live = new Set([...a.overdue, ...a.today, ...a.week].map((r) => r.task.id));

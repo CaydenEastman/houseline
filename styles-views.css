@@ -186,6 +186,20 @@ textarea.v-pre { border: 1.5px solid var(--muted); resize: vertical; }
 .v-score-needs-work .v-score-num { border-color: var(--overdue); background: var(--overdue-bg); color: var(--overdue); }
 .v-score-band { font-weight: 800; font-size: 1.1rem; }
 .v-fixes { margin: 0; padding-left: 1.2rem; display: grid; gap: .3rem; }
+/* Today: score card stacks (badge + status on top, next steps as tappable rows below) */
+.v-today-score { display: grid; gap: .8rem; }
+.v-today-score .v-h3 { margin: 0; }
+.v-today-score .v-score-row { display: flex; gap: .9rem; align-items: center; }
+.v-today-score .v-h5 { margin: 0 0 .4rem; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.v-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.v-step { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .7rem; width: 100%; min-height: 2.75rem; padding: .55rem .75rem;
+  background: var(--surface-2); border-radius: 10px; cursor: pointer; color: var(--text); line-height: 1.3; }
+.v-step:hover { background: var(--line); }
+.v-step:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.v-step::after { content: "›"; margin-left: auto; padding-left: .5rem; font-size: 1.4rem; color: var(--muted); }
+.v-step-n { flex: none; display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; font-size: .85rem; font-weight: 800;
+  border: 2px solid var(--muted); color: var(--text); }
+.v-step-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .v-linkbtn { all: unset; cursor: pointer; color: var(--brand); text-decoration: underline; padding: .2rem 0; min-height: 2.75rem; box-sizing: border-box; }
 .v-linkbtn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .v-plain { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; }
