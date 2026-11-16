@@ -70,14 +70,16 @@ You may not need your own server. Managed backend + a cron function covers every
 - [ ] Decide the model: free, one-time price, or subscription. Stripe for web; store billing for store apps.
 - [ ] Privacy policy and terms (you will store home details, vehicle info, and photos).
 - [ ] Do not collect anything sensitive you do not need. Never store payment cards yourself.
-- [ ] Backups of the database and a plan for account deletion requests.
+- [x] Nightly database backups (last 14 days, documents only, not photos). Owner can restore a day from You, Account, Daily backups; restoring saves the current data first so it can be undone.
 
 ## 8. Quality and polish
 
 - [ ] Test on a range of real phones (small Android, large iPhone, tablet).
-- [ ] Error reporting (Sentry free tier) so you hear about crashes.
+- [x] Error reporting: signed-in phones send crashes (message, trimmed stack, page, browser, app version, no task data) to the `client_errors` table, max 5 per session and 50 per day per person. Read with SQL.
 - [ ] Simple analytics, privacy-friendly (Plausible or none).
-- [ ] CI: run `npm test` on every push (GitHub Actions).
+- [x] CI: `.github/workflows/test.yml` runs `npm test` on every push and pull request.
+- [x] Today feed shows the 10 most urgent first, with Show more / Show fewer.
+- [ ] Photo files left behind when someone joins another household are not cleaned up.
 - [ ] Home-screen widget / "today" shortcut for fast access (needs the store-app route).
 - [ ] Spanish translation (you are fluent), since the task text is all in one place.
 

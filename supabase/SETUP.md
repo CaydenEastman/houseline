@@ -40,3 +40,7 @@ Supabase's built-in sender is for testing: it is limited to a few emails an hour
 3. In Supabase: **Authentication, Emails (or Project Settings, Authentication), SMTP Settings**, turn on **Custom SMTP**, and enter the sender address, name ("Man of the House"), host (`smtp.resend.com`), port `465`, username `resend`, and the API key as the password.
 4. Authentication, Rate Limits: raise "emails per hour" to something sensible (e.g. 30).
 5. Send yourself a sign-in link to test.
+
+## Backups and crash reports
+
+`schema.sql` creates nightly snapshots (14 days, documents only) and a `client_errors` table. After running it, schedule the jobs (the commented `cron.schedule` lines at the end of that section): `nightly-snapshots` and `prune-client-errors`. To read recent crashes: `select created_at, version, page, message from client_errors order by created_at desc limit 20;`

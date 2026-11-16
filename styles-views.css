@@ -359,3 +359,6 @@ dialog *, .add-grid > * { min-width: 0; }
 .help-links a { display: inline-block; padding: .35rem .6rem; border: 1.5px solid var(--line); border-radius: .5rem; text-decoration: none; }
 .tf-help { grid-column: 1 / -1; }
 .v-grid3 { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr); gap: .5rem; }
+.tf-more { display: flex; justify-content: center; margin: .8rem 0; }
+.backups { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--line, rgba(128,128,128,.3)); }
+.backups h4 { margin: 0 0 .35rem; }

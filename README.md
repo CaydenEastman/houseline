@@ -84,6 +84,7 @@ Runs against a small stub DOM (`tests/stubdom.mjs`), so there is no browser depe
 - Morning push reminders (signed in, installed app) arrive even when the app is closed. Without signing in, reminders only fire when the app is opened. iPhone needs the app added to the Home Screen first.
 - Changes from another phone arrive instantly over a live connection (Supabase Realtime). If that connection is blocked, the app falls back to checking every 20 seconds. Household sharing is not built yet.
 - Saves to the cloud are conditional: if another phone saved first, the app re-reads, merges, and saves again, so one save never silently overwrites another.
-- Photos are not part of backups.
+- Photos are not part of backups (neither the manual export nor the nightly database backups).
+- Nightly database backups keep 14 days; crash reports go to the `client_errors` table; `npm test` runs on GitHub for every push.
 - If two devices change the same field at the same moment, the later save wins (the merge handles most other cases).
 - Layout is tested in headless Chrome at 320 to 414px wide, not yet on a range of real phones.

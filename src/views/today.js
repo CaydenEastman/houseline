@@ -6,12 +6,14 @@ import { makePaint, plural, dueWords } from "./shared.js";
 
 export const id = "today";
 export const label = "Today";
-const S = { pending: null, sel: new Set(), selecting: false, cat: "all", scoreOpen: false };
+const S = { pending: null, sel: new Set(), selecting: false, cat: "all", scoreOpen: false, showAll: false };
+const FEED_LIMIT = 10; // the most urgent are shown first; the rest sit behind "Show more"
+const FEED_SLACK = 3;  // not worth hiding for just a few extra
 const CAT_ICON = { car: "\u{1F697}", house: "\u{1F3E0}", yard: "\u{1F33F}", emergency: "\u{1F6DF}" };
 const paint = makePaint(S);
 
 /** Reset module state (tests mount several views in one process). */
-export function resetTodayView() { S.pending = null; S.sel = new Set(); S.selecting = false; S.cat = "all"; S.scoreOpen = false; }
+export function resetTodayView() { S.pending = null; S.sel = new Set(); S.selecting = false; S.cat = "all"; S.scoreOpen = false; S.showAll = false; }
 
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
@@ -31,7 +33,9 @@ function build(ctx, rerender) {
   const all = [...a.overdue.map((r) => ({ ...r, group: "Overdue" })), ...a.today.map((r) => ({ ...r, group: "Today" })), ...a.week.map((r) => ({ ...r, group: "This week" }))];
   const count = (c) => all.filter((r) => c === "all" || r.task.category === c).length;
   if (S.cat !== "all" && count(S.cat) === 0 && count("all") > 0) S.cat = "all";
-  const rows = all.filter((r) => S.cat === "all" || r.task.category === S.cat);
+  const allRows = all.filter((r) => S.cat === "all" || r.task.category === S.cat);
+  const collapsed = !S.showAll && allRows.length > FEED_LIMIT + FEED_SLACK;
+  const rows = collapsed ? allRows.slice(0, FEED_LIMIT) : allRows; // what is on screen (and what "Select all" means)
   const live = new Set(all.map((r) => r.task.id));
   for (const i of [...S.sel]) if (!live.has(i)) S.sel.delete(i);
 
@@ -95,8 +99,13 @@ function build(ctx, rerender) {
     if (r.group !== lastGroup) { feed.push(h("li", { class: "tf-group", "aria-hidden": "true", text: r.group })); lastGroup = r.group; }
     feed.push(card(r));
   }
+  const hidden = allRows.length - rows.length;
+  const moreBtn = (collapsed || (S.showAll && allRows.length > FEED_LIMIT + FEED_SLACK))
+    ? h("div", { class: "tf-more" }, h("button", { type: "button", class: "btn", "data-fk": "tf-more",
+        text: collapsed ? `Show ${hidden} more` : "Show fewer",
+        onclick: () => { S.showAll = !S.showAll; S.sel.clear(); S.pending = "tf-more"; rerender(); } })) : null;
   const list = rows.length
-    ? h("ul", { class: "tf-feed" }, feed)
+    ? h("div", {}, h("ul", { class: "tf-feed" }, feed), moreBtn)
     : h("section", { class: "v-panel" }, h("h3", { class: "v-h3", text: all.length ? "Nothing in this area" : "You're clear for the week" }),
       h("p", { class: "v-hint", text: all.length ? "Try another area, or pick All." : "Nothing is overdue or due in the next 7 days. Use + to add something." }));
 

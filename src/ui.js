@@ -1094,7 +1094,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         });
         wrap.replaceChildren(
           h("p", { class: "hint", text: `Signed in${s.user && s.user.email ? " as " + s.user.email : ""}. Your data syncs to your account, so it survives a lost phone and appears on your other phones.` }), out,
-          ...(doc.defaultView.motHousehold ? [householdPanel(), yourDataPanel()] : []));
+          ...(doc.defaultView.motHousehold ? [householdPanel(), backupsPanel(), yourDataPanel()] : []));
         return;
       }
       const email = h("input", { type: "email", id: "s-email", autocomplete: "email", inputmode: "email", placeholder: "you@example.com", "aria-label": "Email address" });
@@ -1185,6 +1185,37 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         } }));
       } else {
         kids.push(h("p", { class: "hint", text: "To leave, first remove the others or make someone else the owner." }));
+      }
+      wrap.replaceChildren(...kids);
+    }
+    paint();
+    return wrap;
+  }
+
+  function backupsPanel() {
+    const api = hhApi();
+    const ls = doc.defaultView.localStorage;
+    const wrap = h("div", { class: "backups" }, h("h4", { text: "Daily backups" }), h("p", { class: "hint", text: "Loading…" }));
+    async function paint() {
+      let days, info;
+      try { [days, info] = await Promise.all([api.snapshots(), api.info()]); }
+      catch { wrap.replaceChildren(h("h4", { text: "Daily backups" }), h("p", { class: "hint", text: "Couldn't load your backups right now." })); return; }
+      const owner = info.role === "owner";
+      const kids = [h("h4", { text: "Daily backups" }),
+        h("p", { class: "hint", text: "Every morning the app saves a copy of your household's tasks and history, and keeps the last 14 days. Photos are not included." + (owner ? "" : " Only the owner can restore one.") })];
+      if (!days.length) kids.push(h("p", { class: "hint", text: "The first backup is made tonight." }));
+      else {
+        const list = h("ul", { class: "member-list" });
+        for (const d of days) {
+          const li = h("li", {}, h("span", { text: `${fmtDate(d.day)}${d.tasks != null ? ` · ${plural(d.tasks, "task")}` : ""}` }));
+          if (owner) li.append(" ", h("button", { type: "button", class: "btn small", "data-day": d.day, text: "Restore", onclick: async () => {
+            if (!(await confirmDialog({ title: `Go back to ${fmtDate(d.day)}?`, message: "Your household's tasks and history become what they were then, for everyone in it. What you have right now is saved first as today's backup, so you can undo this by restoring today.", confirmLabel: "Restore", danger: true }))) return;
+            try { await api.restoreSnapshot(d.day); clearLocalCache(ls, "motH.v1"); toast("Restored. Loading…"); setTimeout(reloadApp, 600); }
+            catch (e) { toast(errMsg(e, "Couldn't restore that backup."), { error: true }); }
+          } }));
+          list.append(li);
+        }
+        kids.push(list);
       }
       wrap.replaceChildren(...kids);
     }

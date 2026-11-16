@@ -318,3 +318,96 @@ revoke all on function public.household_info(), public.create_invite(), public.c
   public.remove_member(uuid), public.make_owner(uuid), public.delete_my_account() from public, anon;
 grant execute on function public.household_info(), public.create_invite(), public.cancel_invite(), public.accept_invite(text), public.leave_household(),
   public.remove_member(uuid), public.make_owner(uuid), public.delete_my_account() to authenticated;
+
+-- ===== Nightly backups (14 days) and error log =====
+create table if not exists public.docs_snapshots (
+  household_id uuid not null references public.households(id) on delete cascade,
+  taken_on date not null,
+  path text not null,
+  data jsonb not null,
+  primary key (household_id, taken_on, path)
+);
+alter table public.docs_snapshots enable row level security;
+revoke all on public.docs_snapshots from anon, authenticated;
+
+-- Copy every household's documents into today's snapshot and drop snapshots older than 14 days. Run nightly by pg_cron.
+create or replace function public.take_snapshots()
+returns integer language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  insert into public.docs_snapshots (household_id, taken_on, path, data)
+    select d.household_id, (now() at time zone 'utc')::date, d.path, d.data from public.docs d
+  on conflict (household_id, taken_on, path) do update set data = excluded.data;
+  get diagnostics n = row_count;
+  delete from public.docs_snapshots where taken_on < (now() at time zone 'utc')::date - 14;
+  return n;
+end $$;
+revoke all on function public.take_snapshots() from public, anon, authenticated;
+
+-- The days I can go back to, newest first, with how many tasks each had.
+create or replace function public.list_snapshots()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  return coalesce((select jsonb_agg(jsonb_build_object('day', s.taken_on, 'tasks', case when jsonb_typeof(m.data->'tasks') = 'array' then jsonb_array_length(m.data->'tasks') end) order by s.taken_on desc)
+    from (select distinct taken_on from public.docs_snapshots where household_id = hh) s
+    left join public.docs_snapshots m on m.household_id = hh and m.taken_on = s.taken_on and m.path = 'household/main'), '[]'::jsonb);
+end $$;
+
+-- Owner only. First saves the current data as today's snapshot (so the restore can be undone by restoring today), then swaps in the chosen day.
+create or replace function public.restore_snapshot(day date)
+returns integer language plpgsql security definer set search_path = public as $$
+declare hh uuid; n integer; today date := (now() at time zone 'utc')::date;
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can restore a backup';
+  end if;
+  if not exists (select 1 from public.docs_snapshots s where s.household_id = hh and s.taken_on = day) then
+    raise exception 'There is no backup for that day.';
+  end if;
+  if day <> today then
+    delete from public.docs_snapshots where household_id = hh and taken_on = today;
+    insert into public.docs_snapshots (household_id, taken_on, path, data) select d.household_id, today, d.path, d.data from public.docs d where d.household_id = hh;
+  end if;
+  delete from public.docs where household_id = hh;
+  insert into public.docs (household_id, path, data, updated_at)
+    select hh, r.path, r.data, (extract(epoch from clock_timestamp()) * 1000)::bigint from public.docs_snapshots r where r.household_id = hh and r.taken_on = day;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.list_snapshots(), public.restore_snapshot(date) from public, anon;
+grant execute on function public.list_snapshots(), public.restore_snapshot(date) to authenticated;
+
+-- App errors people hit, so crashes are heard about. Insert-only for signed-in users; nobody can read it from the app.
+create table if not exists public.client_errors (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  message text not null check (length(message) <= 500),
+  stack text check (length(stack) <= 3000),
+  page text check (length(page) <= 200),
+  agent text check (length(agent) <= 250),
+  version text check (length(version) <= 40)
+);
+create index if not exists client_errors_at_idx on public.client_errors(at);
+alter table public.client_errors enable row level security;
+revoke all on public.client_errors from anon, authenticated;
+grant insert on public.client_errors to authenticated;
+drop policy if exists client_errors_insert on public.client_errors;
+create policy client_errors_insert on public.client_errors for insert to authenticated with check (user_id = auth.uid());
+create or replace function public.client_errors_cap() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if (select count(*) from public.client_errors e where e.user_id = new.user_id and e.at > now() - interval '1 day') >= 50 then
+    raise exception 'too many error reports';
+  end if;
+  return new;
+end $$;
+drop trigger if exists client_errors_cap on public.client_errors;
+create trigger client_errors_cap before insert on public.client_errors for each row execute function public.client_errors_cap();
+revoke all on function public.client_errors_cap() from public, anon, authenticated;
+
+-- Schedules (run once; pg_cron and pg_net are enabled in the dashboard under Database, Extensions):
+--   select cron.schedule('nightly-snapshots', '15 9 * * *', 'select public.take_snapshots()');
+--   select cron.schedule('prune-client-errors', '30 9 * * *', $$delete from public.client_errors where at < now() - interval '30 days'$$);

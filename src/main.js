@@ -37,6 +37,11 @@ async function supabaseBackend(localStorage) {
     catch { /* bad or expired link: stay signed out */ }
     finally { if (String(location.hash).includes("access_token=")) history.replaceState(null, "", location.pathname + location.search); } // never leave tokens in the address bar
     window.motAuth = auth; // the sign-in screen (next step) uses this
+    try {
+      const { installErrorReporting } = await import("./errors.js");
+      const { APP_VERSION } = await import("./version.js");
+      installErrorReporting({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, auth, version: APP_VERSION, win: window });
+    } catch { /* reporting is optional */ }
     const { createHousehold } = await import("./household.js");
     window.motHousehold = createHousehold({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, auth });
     if (cfg.VAPID_PUBLIC_KEY) {

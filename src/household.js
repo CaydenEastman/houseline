@@ -60,6 +60,8 @@ export function createHousehold({ url, anonKey, auth, fetchImpl }) {
     leave: () => rpc("leave_household"),
     remove: (userId) => rpc("remove_member", { target: userId }),
     makeOwner: (userId) => rpc("make_owner", { target: userId }),
+    snapshots: () => rpc("list_snapshots"),
+    restoreSnapshot: (day) => rpc("restore_snapshot", { day }),
 
     /** Delete this household's photo files (only ever called when the person is alone in it). */
     async deletePhotoFiles(householdId) {
