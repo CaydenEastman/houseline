@@ -79,7 +79,6 @@ test("Home tiles show a badge when something needs attention; the banner no long
   const doc = makeDocument(); doc.defaultView = { localStorage: fakeLS({ "motH.tour": "1" }) };
   await mount(doc, { store: store(), state: state() }); // one overdue task
   assert.equal(doc.getElementById("today-strip").textContent, ""); // the top banner is gone, so no "null" or counts
-  assert.ok(doc.getElementById("sync-pill")); // the Saved indicator lives in the header
   doc.getElementById("nav").querySelector("#nav-home").click(); await sleep(5);
   const tile = doc.getElementById("main").querySelectorAll(".hub-tile").find((t) => t.getAttribute("data-fk") === "hub-tasks");
   assert.ok(tile.querySelector(".hub-badge-overdue"));

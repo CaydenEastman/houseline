@@ -73,6 +73,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   let undo = null; // { state }
   let undoToast = null;
   let sync = { kind: store.mode === "cloud" ? "saved" : "local", message: "" };
+  let lastSyncKind = null;
   const me = { id: null, isOwner: false };
   const names = {};
   const requestedNames = new Set();
@@ -306,15 +307,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     return names[id] || "Someone";
   }
 
-  // ---------- Sync indicator (header) ----------
+  // ---------- Top banner (removed) ----------
   const SYNC_LABEL = { saved: "Saved", saving: "Saving…", error: "Not saved", offline: "Offline", local: "Local only" };
   function renderStrip() {
-    // The old banner is gone. Only the small sync indicator remains, up in the header next to Settings.
+    // No banner or header indicator any more: a sync problem shows up as a message at the bottom (see onStatus).
     els.strip.hidden = true; els.strip.replaceChildren();
-    const pillKind = store.mode === "local" && sync.kind === "saved" ? "local" : sync.kind;
-    const pill = h("span", { id: "sync-pill", class: `pill sync-${pillKind}`, title: sync.message || "", text: SYNC_LABEL[pillKind] || "Saved" });
-    const old = doc.getElementById("sync-pill");
-    if (old) old.replaceWith(pill); else els.headerActions.prepend(pill);
   }
 
   // ---------- navigation ----------
@@ -1076,6 +1073,8 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       sync = { kind: st.kind || "saved", message: st.message || "" };
       if (els.app.hidden === false) renderStrip();
       if (st.kind === "error") toast(st.message || "Couldn't save your changes.", { error: true });
+      else if (st.kind === "offline" && lastSyncKind !== "offline") toast(st.message || "You're offline. Changes are saved on this device and will sync later.", { error: true, ms: 9000 });
+      lastSyncKind = st.kind;
     });
   } catch { /* optional */ }
   try {
