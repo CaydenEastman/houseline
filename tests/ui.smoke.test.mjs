@@ -57,9 +57,9 @@ test('seeded state: all nine tabs render without view errors', async () => {
   await mount(doc, { store: fakeStore(), state: seeded() });
   assert.equal(doc.getElementById('app').hidden, false); assert.equal(doc.getElementById('wizard').hidden, true);
   const labels = doc.getElementById('nav').querySelectorAll('button').map((b) => b.textContent.replace(/[^\w ]/g, '').trim());
-  for (const l of ['Today', 'Tasks', 'History', 'Inventory', 'Vehicles', 'Vendors', 'Emergency', 'Calendar', 'Insights']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
+  for (const l of ['Today', 'Tasks', 'History', 'Inventory', 'Vehicles', 'Vendors', 'Emergency', 'Calendar', 'Insights', 'More']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
   const btns = doc.getElementById('nav').querySelectorAll('button');
-  assert.equal(btns.length, 9);
+  assert.equal(btns.length, 10); // 4 main + More + 5 in the More list
   for (const b of btns) {
     b.click(); await sleep(5);
     assert.equal(doc.body.querySelectorAll('.view-error').length, 0, 'view error in tab ' + b.textContent + ': ' + doc.body.querySelectorAll('.view-error').map((e) => e.textContent).join('|'));

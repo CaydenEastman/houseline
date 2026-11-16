@@ -310,3 +310,9 @@ body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 /* Larger text option */
 :root[data-text="large"] { font-size: 118%; }
 :root[data-text="xl"] { font-size: 135%; }
+
+/* More menu + tour */
+.nav-more-list { background: var(--surface-2); border-top: 1px solid var(--line); }
+.nav-more-list[hidden] { display: none; }
+.nav-btn.nav-has-current { color: var(--brand); border-top-color: var(--brand); }
+.tour-list { margin: .6rem 0 1rem; padding-left: 1.2rem; display: grid; gap: .5rem; }

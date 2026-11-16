@@ -329,18 +329,35 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   // ---------- navigation ----------
+  const PRIMARY = ["today", "tasks", "calendar", "emergency"];
+  let moreOpen = false;
   function renderNav() {
-    els.nav.replaceChildren(h("ul", { class: "nav-list" }, TABS.map((t) =>
-      h("li", {}, h("button", {
-        type: "button", class: "nav-btn", id: `nav-${t.id}`,
-        "aria-current": active === t.id ? "page" : null,
-        onclick: () => setView(t.id, false),
-      }, h("span", { class: "nav-icon", "aria-hidden": "true", text: t.icon }), h("span", { class: "nav-label", text: t.label }))))));
+    const primary = PRIMARY.map((id) => TABS.find((t) => t.id === id)).filter(Boolean);
+    const secondary = TABS.filter((t) => !PRIMARY.includes(t.id));
+    const inMore = secondary.some((t) => t.id === active);
+    const navBtn = (t, current) => h("li", {}, h("button", {
+      type: "button", class: "nav-btn", id: `nav-${t.id}`,
+      "aria-current": current ? "page" : null,
+      onclick: () => setView(t.id, false),
+    }, h("span", { class: "nav-icon", "aria-hidden": "true", text: t.icon }), h("span", { class: "nav-label", text: t.label })));
+    const activeSecondary = secondary.find((t) => t.id === active);
+    const moreBtn = h("li", {}, h("button", {
+      type: "button", class: "nav-btn" + (inMore ? " nav-has-current" : ""), id: "nav-more",
+      "aria-expanded": String(moreOpen), "aria-controls": "nav-more-list",
+      "aria-current": inMore && !moreOpen ? "page" : null,
+      onclick: () => { moreOpen = !moreOpen; renderNav(); },
+    }, h("span", { class: "nav-icon", "aria-hidden": "true", text: "⋯" }),
+    h("span", { class: "nav-label", text: activeSecondary ? `More: ${activeSecondary.label}` : "More" })));
+    els.nav.replaceChildren(
+      h("ul", { class: "nav-list" }, primary.map((t) => navBtn(t, active === t.id)), moreBtn),
+      h("ul", { class: "nav-list nav-more-list", id: "nav-more-list", hidden: moreOpen ? null : true, "aria-label": "More sections" },
+        secondary.map((t) => navBtn(t, moreOpen && active === t.id))));
   }
 
   function setView(id, focusPanel) {
     if (!TABS.some((t) => t.id === id)) return;
     active = id;
+    moreOpen = false;
     render();
     if (focusPanel && panels[id]) { panels[id].root.setAttribute("tabindex", "-1"); panels[id].root.focus(); }
   }
@@ -782,6 +799,45 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
   readLook(); applyLook();
 
+  // ---------- first-run tour (once per device) ----------
+  const TOUR_KEY = "motH.tour";
+  const tourSeen = () => {
+    try { const ls = doc.defaultView && doc.defaultView.localStorage; return !ls || ls.getItem(TOUR_KEY) === "1"; } catch { return true; }
+  };
+  const markTourSeen = () => { try { doc.defaultView.localStorage.setItem(TOUR_KEY, "1"); } catch { /* shown again next visit */ } };
+  const TOUR = [
+    { icon: "\u{1F3E1}", title: "Today is your home base", lines: [
+      "The score shows how ready the house, cars and emergency supplies are.",
+      "Below it, see what's overdue or due this week. Tap Done, or tick several and mark them done together.",
+      "The ⋯ More tab holds History, Inventory, Vehicles, Vendors and Insights."] },
+    { icon: "⚡", title: "Add things in seconds", lines: [
+      "Type in the Quick add box, like “clean gutters every 6 months” or “renew registration every January 15”.",
+      "For anything more detailed, use + Add task. You can also import a spreadsheet from Settings."] },
+    { icon: "\u{1F4C5}", title: "See it on the calendar", lines: [
+      "The Calendar tab shows which days tasks, expiring supplies and warranties land on. Tap a day for details.",
+      "Need more time? Move a task to a later day from that day's list.",
+      "Everyone signed in to this household sees the same tasks, so split the work with the Assign setting on a task."] },
+  ];
+  function openTour(trigger) {
+    let i = 0;
+    const draw = () => {
+      const t = TOUR[i];
+      const last = i === TOUR.length - 1;
+      const finish = () => { markTourSeen(); closeDialog(els.confirm); };
+      openDialog(els.confirm, [
+        h("p", { class: "eyebrow", text: `Quick tour · ${i + 1} of ${TOUR.length}` }),
+        h("h2", { id: "confirm-dialog-title" }, h("span", { "aria-hidden": "true", text: `${t.icon} ` }), t.title),
+        h("ul", { class: "tour-list" }, t.lines.map((l) => h("li", { text: l }))),
+        h("div", { class: "dialog-actions" },
+          h("button", { type: "button", class: "btn", id: "tour-skip", text: last ? "Close" : "Skip tour", onclick: finish }),
+          i > 0 ? h("button", { type: "button", class: "btn", id: "tour-back", text: "Back", onclick: () => { i--; draw(); } }) : null,
+          last ? h("button", { type: "button", class: "btn primary solid", id: "tour-next", text: "Got it", onclick: finish })
+            : h("button", { type: "button", class: "btn primary solid", id: "tour-next", text: "Next", onclick: () => { i++; draw(); } })),
+      ], { trigger, onClose: markTourSeen, focus: "#tour-next" });
+    };
+    draw();
+  }
+
   // ---------- Settings ----------
   function openSettings(trigger) {
     const out = h("div", { class: "settings-out" });
@@ -867,6 +923,9 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
     openDialog(els.settings, [
       h("h2", { id: "settings-dialog-title", text: "Settings" }),
+      h("section", { class: "set-sec" },
+        h("h3", { text: "Help" }),
+        h("button", { type: "button", class: "btn", id: "s-tour", text: "Show the quick tour", onclick: () => { closeDialog(els.settings); openTour(null); } })),
       h("section", { class: "set-sec" },
         h("h3", { text: "Look" }),
         h("div", { class: "field" }, h("label", { for: "s-theme", text: "Theme" }),
@@ -1010,6 +1069,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   } catch { /* optional */ }
 
   render();
+  if (!tourSeen() && state.profile && state.profile.setupDone && !loadError) openTour(null);
   if (loadError) toast("Could not load your saved data, so a fresh start was opened. " + errMsg(loadError), { error: true, ms: 12000 });
   else if (store.warning) toast(String(store.warning), { error: true, ms: 10000 });
   else if (!persistent && store.mode === "local") toast("Storage is unavailable; changes will not be kept after you close this page.", { error: true, ms: 10000 });
