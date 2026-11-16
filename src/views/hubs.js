@@ -49,7 +49,9 @@ export const youView = {
   render(container, ctx) {
     const s = ctx.getState();
     const n = (s.completions || []).length;
+    const acct = ctx.account ? ctx.account() : null;
     tiles(container, ctx, "You", "Your history, numbers and settings.", [
+      ...(acct ? [{ id: "account", icon: "\u{1F512}", label: "Account", sub: acct.signedIn ? `Signed in${acct.email ? " as " + acct.email : ""}` : "Sign in to back up and sync your phones", onclick: (e) => ctx.openSettings(e && e.currentTarget) }] : []),
       { id: "history", icon: "\u{1F4D6}", label: "History", sub: `${n === 1 ? "1 entry" : `${n} entries`} of what you've done`, onclick: go(ctx, "history") },
       { id: "insights", icon: "\u{1F4CA}", label: "Insights", sub: "Spending, yearly upkeep and your home binder", onclick: go(ctx, "insights") },
       { id: "settings", icon: "⚙️", label: "Settings", sub: "Theme, text size, backup, import and help", onclick: (e) => ctx.openSettings(e && e.currentTarget) },

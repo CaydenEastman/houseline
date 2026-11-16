@@ -194,6 +194,7 @@ export function migrate(raw) {
     }
     return validateState(o);
   }
+  need(!(Number.isInteger(raw.version) && raw.version > STATE_VERSION), "This data was saved by a newer version of the app. Reload or update the app to open it. Nothing was changed.");
   need(raw.version === 1, `Unsupported state version: ${raw.version}`);
   need(Array.isArray(raw.tasks), "State.tasks must be an array");
   need(Array.isArray(raw.completions), "State.completions must be an array");

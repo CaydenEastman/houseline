@@ -35,9 +35,10 @@ A home maintenance reminder app for car, house, yard, and emergency prep. Plain 
 | Where it runs | Storage | Two-device sync |
 |---|---|---|
 | Claude artifact (private link) | Claude's per-user storage | Yes, with a household member too |
-| Any other web host (GitHub Pages, etc.) | This browser's local storage | No. Use Export/Import backup |
+| Any other web host (GitHub Pages, etc.), no Supabase configured | This browser's local storage | No. Use Export/Import backup |
+| Any web host with Supabase configured and the user signed in | Your Supabase database and private photo bucket, cached on the device | Yes, instantly, with offline edits uploaded when the connection returns |
 
-The app detects which one it is in `src/main.js` and falls back to local mode by itself. Local data is per browser and per device; clearing site data deletes it, so export a backup now and then.
+The app picks one in `src/main.js` and falls back to local mode by itself. Cloud mode needs a Supabase project: follow `supabase/SETUP.md`, then fill in `config.js`. Sign in from **You, Account** (email link or Google). Until a Supabase project is configured, the Account screens are hidden and the app stays local. Local data is per browser and per device; clearing site data deletes it, so export a backup now and then.
 
 ## Run it
 
@@ -73,14 +74,16 @@ Runs against a small stub DOM (`tests/stubdom.mjs`), so there is no browser depe
 - `manifest.webmanifest`, `sw.js`, `icons/`: install and offline support.
 - `src/`: logic, storage, sync (3-way merge for two devices), quick add, CSV import, calendar export, readiness scoring, cost estimates, photos, reminders (`pwa.js`), and the UI shell and wizard.
 - `src/views/`: Today, Calendar, Home/You hubs, Inventory, Vehicles, Vendors, Emergency, History, Insights.
-- `tests/`: the test suite.
+- `src/supabase.js`, `src/auth.js`, `config.js`, `supabase/`: the cloud backend (fetch only, no SDK), sign-in session handling, and the SQL for tables, security rules and the photo bucket.
+- `tests/`: the test suite, including a fake Supabase server (`tests/fakesupa.mjs`) that enforces the same household-isolation rules.
 - `SPEC.md`, `SPEC_V2.md`, `SPEC_CALENDAR.md`: the contracts the modules were built against.
 - `TODO.md`: what is left to make this a full product.
 
 ## Known limits
 
 - Reminders only fire when the app is opened. A closed web app cannot wake itself without a server sending push messages (see `TODO.md`).
-- Off Claude hosting there is no cross-device sync and no household sharing yet.
+- Changes from another phone arrive instantly over a live connection (Supabase Realtime). If that connection is blocked, the app falls back to checking every 20 seconds. Household sharing is not built yet.
+- Saves to the cloud are conditional: if another phone saved first, the app re-reads, merges, and saves again, so one save never silently overwrites another.
 - Photos are not part of backups.
 - If two devices change the same field at the same moment, the later save wins (the merge handles most other cases).
 - Layout is tested in headless Chrome at 320 to 414px wide, not yet on a range of real phones.

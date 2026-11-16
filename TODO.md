@@ -9,25 +9,26 @@ The app itself works. What follows is the infrastructure around it: where data l
 - [ ] Export a backup from the Claude-hosted copy and import it into the Pages copy (they do not share data).
 - [ ] Check the install icon, notification permission, and offline start on iPhone and on Android.
 
-## 1. Storage that survives (a backend database)
+## 1. Storage that survives (built, needs your Supabase project)
 
-Today: browser local storage (Pages) or Claude's storage (artifact). Local storage is lost if the user clears the browser or changes phones.
+- [x] Backend chosen: **Supabase** (Postgres, row-level security, private photo bucket, plain REST so no build step).
+- [x] Storage adapter (`src/supabase.js`) reuses the existing merge, sharding and offline code unchanged.
+- [x] Photos go to a private storage bucket, not the database.
+- [x] Offline edits stay on the phone and upload when the network returns (and retry on a growing delay).
+- [x] Schema versioning: data from a newer app version is never overwritten; older data is migrated on read.
+- [x] Supabase project `man-of-the-house` created (us-west-1), schema applied, `config.js` filled in.
+- [ ] **You:** in the Supabase dashboard, Authentication, URL Configuration: set Site URL to your Pages address and add it under Redirect URLs (without this, sign-in links will not return to the app).
+- [x] Conditional writes on the main document: a stale save is refused and re-merged, so no save overwrites a newer one.
+- [x] Instant updates over Supabase Realtime (polling stays as a slow fallback).
+- [ ] Delete a household's photos and docs when its last member is removed.
 
-- [ ] Pick a backend. Easiest fits: **Supabase** (Postgres + auth + row-level security, free tier) or **Firebase** (Firestore + auth). Both give a database and sign-in in one product.
-- [ ] Data model: one row per user holding the app state JSON (it is already one versioned object, `version: 2`), or normalized tables later. Start with the single JSON document per household.
-- [ ] Write a new storage adapter next to `src/sync.js` that matches the same `createStore` interface (`load`, `save`, `flush`, `subscribe`, photos). The existing 3-way `mergeStates` already handles two devices editing at once, so reuse it.
-- [ ] Photos: move to object storage (Supabase Storage or Firebase Storage); keep only the photo ids in state.
-- [ ] Offline writes: keep local copy, queue saves, merge on reconnect (the merge code is already written).
-- [ ] Add schema versioning and a migration step for when the state format changes.
+## 2. Accounts and sign-in (built; Google needs one-time setup)
 
-## 2. Accounts and sign-in
-
-- [ ] Sign in with **Google** (and **Apple**, which Apple requires if you ever offer any social login in an iOS store app). Email magic link as the third option.
-- [ ] Use the backend's built-in auth (Supabase Auth or Firebase Auth) rather than writing your own. Do not store passwords.
-- [ ] Google: create an OAuth client in Google Cloud Console, add your hosted domain to the allowed origins.
-- [ ] Apple: needs an Apple Developer account ($99/yr), a Services ID, and a key.
-- [ ] First sign-in migrates any local data up to the account ("Keep what's on this phone?").
-- [ ] Sign-out, delete account, and "download all my data" (the export already exists).
+- [x] Sign in with an emailed link, and sign out, in **You, Account**. Uses Supabase Auth; no passwords stored by us.
+- [x] First sign-in merges what is already on the phone into the account instead of discarding it; a different account on the same phone never inherits the previous account's data.
+- [ ] **You:** turn on Google sign-in (steps in `supabase/SETUP.md`). Apple sign-in needs the $99/yr developer account and is only required if you ship an iPhone store app with Google sign-in.
+- [ ] Own email sender (SMTP) once more than a few people use it.
+- [ ] Delete account and "download all my data" buttons (export backup already exists).
 
 ## 3. Household sharing
 

@@ -7,7 +7,7 @@ const SHELL = [
   "src/main.js", "src/ui.js", "src/sync.js", "src/storage.js", "src/logic.js", "src/dom.js",
   "src/templates.js", "src/wizard.js", "src/calendar.js", "src/ics.js", "src/quickadd.js",
   "src/quickform.js", "src/importcsv.js", "src/costs.js", "src/photos.js", "src/readiness.js",
-  "src/recap.js", "src/insights.js", "src/pwa.js",
+  "src/recap.js", "src/insights.js", "src/pwa.js", "src/auth.js", "src/supabase.js", "config.js",
   "src/views/shared.js", "src/views/today.js", "src/views/calendar.js", "src/views/hubs.js",
   "src/views/inventory.js", "src/views/vehicles.js", "src/views/vendors.js",
   "src/views/emergency.js", "src/views/history.js", "src/views/insights.js",

@@ -5,6 +5,9 @@ import * as storage from "./storage.js";
 const DOC_STATE = "household/main";
 const PHOTO_PREFIX = "motH.photo.";
 const SENTINEL_TIMEOUT = Symbol("timeout");
+const DIRTY_KEY = "motH.dirty"; // "1" while this device holds edits the cloud has not received yet
+const BASE_KEY = "motH.base"; // the last state both sides agreed on; the merge ancestor for those edits
+const OWNER_KEY = "motH.owner"; // which account the cached data belongs to
 
 const errMsg = (e) => (e && e.message ? e.message : String(e));
 
@@ -231,7 +234,7 @@ export function repairRefs(s, sources = []) {
   return s;
 }
 
-export async function createStore({ localStorage, claude, now = () => Date.now(), loadTimeoutMs = 10_000, debounceMs = 600, coalesceMs = 50, lockRetryMs = 150 } = {}) {
+export async function createStore({ localStorage, claude, mergeUnownedLocal = false, now = () => Date.now(), loadTimeoutMs = 10_000, debounceMs = 600, coalesceMs = 50, lockRetryMs = 150 } = {}) {
   const db = await useCap(claude, "db");
   const ls = localStorage || null;
   let mode = db ? "cloud" : "local";
@@ -258,6 +261,64 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
   let onRemoteChange = null; // set by subscribe
   let base = null; // last known cloud state (3-way merge ancestor)
   const subscribers = new Set();
+  let needsSync = false; // the last cloud write failed; local data is ahead of the cloud
+  let cloudFailed = false; // the cloud could not be reached at load: running on this device's copy for now
+  let retryTimer = null;
+  let retryDelay = 5000;
+  let retryFails = 0;
+  let lastOnlineAt = 0;
+  const subs = new Map(); // subscriber callback -> detach function (null until the cloud is attached)
+
+  // ---- unsynced-edit bookkeeping, kept in localStorage so a closed tab or a restart cannot lose edits ----
+  const isDirty = () => needsSync || (!!ls && (() => { try { return ls.getItem(DIRTY_KEY) === "1"; } catch { return false; } })());
+  function markDirty(ancestor) { // remembers the ancestor only the first time, so repeated failures keep the oldest one
+    if (!ls) return;
+    try {
+      if (ls.getItem(DIRTY_KEY) !== "1") { ls.setItem(BASE_KEY, JSON.stringify(ancestor || storage.freshState())); ls.setItem(DIRTY_KEY, "1"); }
+    } catch { /* storage full: the edit itself is still cached */ }
+  }
+  function clearDirty() { needsSync = false; if (!ls) return; try { ls.removeItem(DIRTY_KEY); ls.removeItem(BASE_KEY); } catch { /* ignore */ } }
+  function savedBase() {
+    if (!ls) return null;
+    try { const raw = ls.getItem(BASE_KEY); return raw ? storage.validateState(storage.migrate(JSON.parse(raw))) : null; } catch { return null; }
+  }
+  const stampOwner = (uid) => { if (ls && uid) { try { ls.setItem(OWNER_KEY, uid); } catch { /* ignore */ } } };
+
+  // Offline-first: a failed cloud write keeps the data on this device and tries again when the network returns,
+  // then on a growing delay (5 s up to 2 min). The 3-way merge makes late writes safe.
+  function retryNow() {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    if (!ls || !isDirty() || mode !== "cloud" || writing || pending) return;
+    const local = readLocal();
+    if (!local.has) return; // never push an empty stand-in over the cloud
+    try { save(local.state); } catch { /* the next trigger tries again */ }
+  }
+  function scheduleRetry() {
+    if (retryTimer || mode !== "cloud") return;
+    retryTimer = setTimeout(() => { retryTimer = null; retryNow(); }, retryDelay);
+    if (retryTimer && typeof retryTimer.unref === "function") retryTimer.unref();
+    retryDelay = Math.min(retryDelay * 2, 120_000);
+  }
+
+  // Cloud was unreachable at load: when the network is back, load again, merging anything edited meanwhile.
+  async function reconnect() {
+    if (!cloudFailed || !db || writing) return;
+    cloudFailed = false;
+    mode = "cloud"; warning = null;
+    const before = lastSerialized;
+    const state = await load();
+    if (mode !== "cloud") { cloudFailed = true; return; }
+    for (const [cb, detach] of [...subs]) { if (!detach) subs.set(cb, attach(cb)); }
+    if (JSON.stringify(state) !== before) for (const cb of [...subs.keys()]) { try { cb(state); } catch { /* ignore listener bugs */ } }
+  }
+  if (typeof globalThis.addEventListener === "function") {
+    globalThis.addEventListener("online", () => {
+      const t = Date.now();
+      if (t - lastOnlineAt < 3000) return; // a flapping connection must not hammer the server
+      lastOnlineAt = t; retryDelay = 5000; retryFails = 0;
+      if (cloudFailed) reconnect().catch(() => {}); else retryNow();
+    });
+  }
 
   async function resolveId() {
     if (idResolved) return myId;
@@ -344,18 +405,42 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
       try {
         const res = await withTimeout(Promise.all([db.doc(MAIN_PATH).get(), fetchHistory()]), loadTimeoutMs);
         if (res === SENTINEL_TIMEOUT) throw new Error("Cloud storage did not answer in time");
+        const uid = await resolveId();
+        // Another account's cached data must never be published into this account.
+        let owner = null; try { owner = ls ? ls.getItem(OWNER_KEY) : null; } catch { /* ignore */ }
+        if (ls && uid && owner && owner !== uid) { try { ls.removeItem(storage.STORAGE_KEY); } catch { /* ignore */ } clearDirty(); }
         const main = snapData(res[0]);
         const hist = res[1];
         const raw = assembleState(main, hist);
         if (raw) {
-          const state = storage.validateState(storage.migrate(raw));
+          const remote = storage.validateState(storage.migrate(raw));
           lastDocs = {};
           if (main && main.version !== undefined) for (const [p, c] of Object.entries(contentMap(main, hist))) lastDocs[p] = canon(c);
-          lastSerialized = JSON.stringify(state);
-          base = state;
-          cacheLocal(state, lastSerialized);
+          base = remote;
+          // Edits made while offline (or before first sign-in) are merged in, never overwritten.
+          const local = readLocal();
+          const unowned = !owner && mergeUnownedLocal && local.has && (local.state.tasks.length > 0 || local.state.profile.setupDone);
+          const ancestor = isDirty() ? (savedBase() || storage.freshState()) : (unowned ? storage.freshState() : null);
+          if (ancestor && local.has) {
+            let merged = remote;
+            try { merged = storage.validateState(mergeStates(ancestor, local.state, remote)); } catch { merged = remote; }
+            lastSerialized = JSON.stringify(remote);
+            stampOwner(uid);
+            if (!same(merged, remote)) {
+              cacheLocal(merged, JSON.stringify(merged));
+              markDirty(remote); // until the upload below succeeds
+              pending = merged;
+              setTimeout(() => { flush(); }, 0);
+              emit("saving", "Saving…");
+              return merged;
+            }
+            clearDirty();
+          }
+          lastSerialized = JSON.stringify(remote);
+          cacheLocal(remote, lastSerialized);
+          stampOwner(uid);
           emit("saved", "Synced");
-          return state;
+          return remote;
         }
         // Empty cloud: adopt this device's data and publish every shard.
         const { state } = readLocal();
@@ -366,15 +451,19 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
           writing = true;
           await writeShards(state, lastSerialized);
           base = state;
+          clearDirty(); stampOwner(uid);
           cacheLocal(state, lastSerialized);
           emit("saved", "Saved");
         } catch (e) {
           lastSerialized = null; // force a retry on the next save
+          if (!(e && e.tooLarge)) { markDirty(storage.freshState()); needsSync = true; scheduleRetry(); }
           emit(e && e.tooLarge ? "error" : "offline", e && e.tooLarge ? errMsg(e) : `Could not upload to cloud yet: ${errMsg(e)}`);
         } finally { writing = false; }
         return state;
       } catch (e) {
-        mode = "local";
+        mode = "local"; cloudFailed = true;
+        const was = readLocal();
+        if (was.has) markDirty(was.state); // what is cached now is the last copy the cloud agreed with, if nothing was dirty already
         warning = `Cloud storage unavailable (${errMsg(e)}). Using data on this device only.`;
         emit("offline", warning);
       }
@@ -403,20 +492,30 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
             try {
               await acquireLock();
               let toWrite = state;
-              const remote = await readRemote();
-              const unchanged = !remote.state
-                || (Object.keys(remote.contents).length === Object.keys(lastDocs).length
-                  && Object.entries(remote.contents).every(([p, c]) => lastDocs[p] === c));
-              if (!unchanged) {
-                lastDocs = { ...remote.contents }; // diff the write against what the cloud really holds
+              // If another phone saves between our read and our write, the server refuses ours (it is conditional on what we
+              // read). Then we simply read again and merge again, up to three times.
+              for (let attempt = 0; ; attempt++) {
                 try {
-                  toWrite = storage.validateState(mergeStates(base || remote.state, state, remote.state));
+                  const remote = await readRemote();
+                  const unchanged = !remote.state
+                    || (Object.keys(remote.contents).length === Object.keys(lastDocs).length
+                      && Object.entries(remote.contents).every(([p, c]) => lastDocs[p] === c));
+                  if (!unchanged) {
+                    lastDocs = { ...remote.contents }; // diff the write against what the cloud really holds
+                    try {
+                      toWrite = storage.validateState(mergeStates(base || savedBase() || remote.state, state, remote.state));
+                    } catch (e) {
+                      // Never overwrite the other device's data with ours: leave the cloud alone and retry on the next change.
+                      throw new Error(`could not combine with changes from another device (${errMsg(e)})`);
+                    }
+                  }
+                  await writeShards(toWrite, JSON.stringify(toWrite));
+                  break;
                 } catch (e) {
-                  // Never overwrite the other device's data with ours: leave the cloud alone and retry on the next change.
-                  throw new Error(`could not combine with changes from another device (${errMsg(e)})`);
+                  if (e && e.conflict && attempt < 3) { toWrite = state; continue; }
+                  throw e;
                 }
               }
-              await writeShards(toWrite, JSON.stringify(toWrite));
               base = toWrite;
               lastSerialized = JSON.stringify(toWrite);
               if (!same(toWrite, state)) {
@@ -426,11 +525,18 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
                 }
                 for (const cb of [...subscribers]) { try { cb(deliver); } catch { /* ignore listener bugs */ } }
               }
+              clearDirty(); retryDelay = 5000; retryFails = 0;
               emit("saved", "Saved");
             } catch (e) {
               result = false;
               if (e && e.tooLarge) emit("error", errMsg(e));
-              else emit("offline", `Saved on this device; cloud sync failed (${errMsg(e)}). Will retry on the next change.`);
+              else {
+                markDirty(base || storage.freshState()); needsSync = true;
+                // Network trouble is retried for a while; a refusal from the server (4xx) or a merge conflict is not hammered.
+                const refused = e && ((e.status >= 400 && e.status < 500 && ![401, 408, 429].includes(e.status)) || /could not combine/.test(errMsg(e)));
+                if (!refused && ++retryFails <= 12) scheduleRetry();
+                emit("offline", `Saved on this device; will sync when the connection is back (${errMsg(e)}).`);
+              }
             } finally { writing = false; await releaseLock(); }
           } else if (cacheErr) {
             result = false;
@@ -476,7 +582,12 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
   }
 
   function subscribe(cb) {
-    if (mode !== "cloud" || !db) return () => {};
+    if (!db) return () => {};
+    subs.set(cb, mode === "cloud" ? attach(cb) : null); // attached later by reconnect() if the cloud was unreachable now
+    return () => { const d = subs.get(cb); subs.delete(cb); if (d) d(); };
+  }
+
+  function attach(cb) {
     let active = true;
     subscribers.add(cb);
     let remoteMain; // undefined = not yet received
@@ -489,6 +600,7 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
     async function process() {
       coalesce = null;
       if (!active || writing || pending || inflight || remoteMain === undefined) return;
+      if (isDirty()) { retryNow(); return; } // our unsent edits go through the merge path first; never overwrite them
       try {
         let hist = remoteHist;
         if (hist === undefined) { if (histListen) return; hist = await fetchHistory(); }
@@ -517,7 +629,11 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
     const schedule = () => { if (active && !coalesce) coalesce = setTimeout(process, coalesceMs); };
     onRemoteChange = schedule;
 
-    const onErr = (e) => emit("offline", `Live sync stopped (${errMsg(e)}). Reload to reconnect.`);
+    let liveDown = false;
+    const onErr = (e) => {
+      if (e) { if (!liveDown) { liveDown = true; emit("offline", `Can't reach the cloud right now (${errMsg(e)}). Your changes are safe on this device.`); } }
+      else if (liveDown) { liveDown = false; emit("saved", "Synced"); } // a later poll succeeded
+    };
     try {
       unsubs.push(db.doc(MAIN_PATH).onSnapshot((snap) => { remoteMain = snapData(snap); schedule(); }, onErr));
       if (histListen) {

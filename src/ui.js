@@ -205,6 +205,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     openTaskForm: (t) => openTaskForm(t || null), toast: (m) => void toast(m), photos, saveFile,
     newId,
     openSettings: (trigger) => openSettings(trigger || null),
+    account: () => { const a = authOf(); if (!a) return null; const s = a.session(); return { signedIn: !!s, email: s && s.user ? s.user.email : null }; },
     markManyDone: (ids) => {
       let next = state, n = 0;
       for (const id of ids) {
@@ -973,6 +974,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", text: "Choose CSV file", onclick: () => csvFile.click() }), csvFile,
           h("button", { type: "button", class: "btn", id: "s-csv-go", text: "Import pasted CSV", onclick: () => doCSV(csvBox.value) })),
         csvOut),
+      ...(authOf() ? [h("section", { class: "set-sec" }, h("h3", { text: "Account" }), accountPanel())] : []),
       h("section", { class: "set-sec" },
         h("h3", { text: "Reminders" }),
         remindersPanel(),
@@ -1018,6 +1020,51 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const kids = [h("p", { class: "hint", text: msg }), btn];
       if (!pwa.isStandalone()) kids.push(h("p", { class: "hint", text: "Tip: in your browser menu choose \"Add to Home Screen\" (or \"Install app\") so it opens like a normal app." }));
       wrap.replaceChildren(...kids);
+    };
+    paint();
+    return wrap;
+  }
+
+  // ---------- Account (only when a cloud project is configured; see config.js) ----------
+  const authOf = () => (doc.defaultView && doc.defaultView.motAuth) || null;
+
+  function accountPanel() {
+    const auth = authOf();
+    const wrap = h("div", { class: "account" });
+    const here = () => { const l = doc.defaultView.location; return l.origin + l.pathname; };
+    const paint = () => {
+      const s = auth.session();
+      if (s) {
+        const out = h("button", { type: "button", class: "btn", id: "s-signout", text: "Sign out" });
+        out.addEventListener("click", async () => {
+          const ok = await confirmDialog({ title: "Sign out?", message: "Your data stays safe in your account. This phone keeps its own copy until you sign in again, and nothing is shared with the next person who signs in here.", confirmLabel: "Sign out" });
+          if (!ok) return;
+          await auth.signOut();
+          doc.defaultView.location.reload();
+        });
+        wrap.replaceChildren(
+          h("p", { class: "hint", text: `Signed in${s.user && s.user.email ? " as " + s.user.email : ""}. Your data syncs to your account, so it survives a lost phone and appears on your other phones.` }), out);
+        return;
+      }
+      const email = h("input", { type: "email", id: "s-email", autocomplete: "email", inputmode: "email", placeholder: "you@example.com", "aria-label": "Email address" });
+      const note = h("p", { class: "hint", id: "s-signin-note", role: "status", text: "" });
+      const mail = h("button", { type: "button", class: "btn primary", id: "s-email-go", text: "Email me a sign-in link" });
+      mail.addEventListener("click", async () => {
+        const v = email.value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { note.textContent = "Enter a valid email address."; email.focus(); return; }
+        mail.disabled = true; note.textContent = "Sending…";
+        try {
+          await auth.signInWithEmail(v, here());
+          note.textContent = `Check ${v} for a link from us and open it on this phone. It may take a minute; look in spam too.`;
+        } catch (e) { note.textContent = "Couldn't send the link: " + errMsg(e, "try again in a moment."); }
+        finally { mail.disabled = false; }
+      });
+      const google = h("button", { type: "button", class: "btn", id: "s-google", text: "Continue with Google" });
+      google.addEventListener("click", () => { doc.defaultView.location.assign(auth.googleUrl(here())); });
+      wrap.replaceChildren(
+        h("p", { class: "hint", text: "Sign in to keep your data safe in the cloud and use it on more than one phone. Your tasks on this phone are kept and merged in." }),
+        h("div", { class: "field" }, h("label", { for: "s-email", text: "Email" }), email),
+        h("div", { class: "row-panel-actions wrap-actions" }, mail, google), note);
     };
     paint();
     return wrap;

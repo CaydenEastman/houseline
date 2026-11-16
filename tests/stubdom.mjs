@@ -108,7 +108,7 @@ export class Element extends Node_ {
   click() { const e = { type: 'click', bubbles: true, target: this, preventDefault() {}, stopPropagation() { this._stop = true; } }; this.dispatchEvent(e); }
   focus() { this.ownerDocument.activeElement = this; } blur() { if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = this.ownerDocument.body; }
   select() {} scrollIntoView() {} showModal() { this.open = true; this.setAttribute('open', ''); } show() { this.showModal(); }
-  close() { this.open = false; this.removeAttribute('open'); }
+  close() { const was = this.open; this.open = false; this.removeAttribute('open'); if (was) this.dispatchEvent({ type: 'close', bubbles: false, target: this, preventDefault() {}, stopPropagation() {} }); } // like a browser: 'close' fires when an open dialog closes
   matches(sel) { return parseSel(sel).some((ch) => matchChain(this, ch)); }
   closest(sel) { let n = this; while (n && n.nodeType === 1) { if (n.matches(sel)) return n; n = n.parentNode; } return null; }
   querySelectorAll(sel) {

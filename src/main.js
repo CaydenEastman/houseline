@@ -24,17 +24,34 @@ function getLocalStorage() {
   }
 }
 
+/** Cloud storage for hosting outside Claude: only when config.js has a Supabase project AND this device is signed in. */
+async function supabaseBackend(localStorage) {
+  const none = { use: async () => null };
+  try {
+    const cfg = await import("../config.js");
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return none;
+    const { createAuth } = await import("./auth.js");
+    const { createSupabaseBackend } = await import("./supabase.js");
+    const auth = createAuth({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, storage: localStorage });
+    try { await auth.consumeRedirect(location.hash); } // returning from a sign-in link or Google: keep the tokens
+    catch { /* bad or expired link: stay signed out */ }
+    finally { if (String(location.hash).includes("access_token=")) history.replaceState(null, "", location.pathname + location.search); } // never leave tokens in the address bar
+    window.motAuth = auth; // the sign-in screen (next step) uses this
+    return createSupabaseBackend({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, auth, realtime: true });
+  } catch { return none; }
+}
+
 async function start() {
   const { localStorage, persistent } = getLocalStorage();
   // window.claude may be absent (plain static hosting); sync.js degrades to local mode.
   const claude = window.claude && typeof window.claude.use === "function"
     ? window.claude
-    : { use: async () => null };
+    : await supabaseBackend(localStorage);
   let store = null;
   let state = null;
   let loadError = null;
   try {
-    store = await createStore({ localStorage, claude, now: () => Date.now() });
+    store = await createStore({ localStorage, claude, mergeUnownedLocal: !!window.motAuth, now: () => Date.now() });
     state = await store.load();
   } catch (e) {
     loadError = e;
