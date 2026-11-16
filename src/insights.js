@@ -2,6 +2,7 @@
 // ("YYYY-MM-DD", local) explicitly and never mutates its input.
 import { dueInfo, statusOf, sortTasks, addDays, daysBetween, summary, warrantyAlerts, spend } from "./logic.js";
 import { readiness } from "./readiness.js";
+import { money, fmtNum } from "./dom.js";
 
 const CATS = ["car", "house", "yard", "emergency"];
 export const CAT_LABEL = { car: "Car", house: "House", yard: "Yard", emergency: "Emergency" };
@@ -199,7 +200,6 @@ export function digestText(state, today, nameOf = (id) => id) {
 
 // ---------- home binder ----------
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function binderModel(state, today) {
   const items = (state.items || []).map((it) => {
@@ -229,7 +229,7 @@ ${table(["Contact", "Phone", "Relationship"], (m.e.contacts || []).map((c) => [c
 <h2>Appliances and home systems</h2>
 ${table(["Item", "Type", "Location", "Model", "Purchased", "Warranty ends", "Spent on upkeep", "Service contacts"], m.items.map(({ it, vendors, spent }) => [it.name, it.kind, it.location, it.model, it.purchaseDate || "-", it.warrantyExpires || "-", spent ? money(spent) : "-", vendors.map((v) => `${v.name}${v.phone ? " " + v.phone : ""}`).join("; ") || "-"]))}
 <h2>Vehicles</h2>
-${table(["Vehicle", "Odometer", "As of"], m.vehicles.map((v) => [v.name, Number(v.odometer).toLocaleString("en-US") + " mi", v.odometerDate]))}
+${table(["Vehicle", "Odometer", "As of"], m.vehicles.map((v) => [v.name, fmtNum(v.odometer) + " mi", v.odometerDate]))}
 <h2>Vendors and contractors</h2>
 ${table(["Name", "Trade", "Phone", "Email", "Notes"], m.vendors.map((v) => [v.name, v.trade, v.phone, v.email, v.notes]))}
 <h2>Emergency supplies</h2>
@@ -249,7 +249,7 @@ export function binderText(state, today) {
   L.push("", "APPLIANCES AND SYSTEMS");
   for (const { it, vendors, spent } of m.items) L.push(`- ${it.name} [${it.kind}] ${it.location} model ${it.model || "-"}; warranty ends ${it.warrantyExpires || "-"}; spent ${spent ? money(spent) : "-"}${vendors.length ? "; service: " + vendors.map((v) => v.name).join(", ") : ""}`);
   L.push("", "VEHICLES");
-  for (const v of m.vehicles) L.push(`- ${v.name}: ${Number(v.odometer).toLocaleString("en-US")} mi as of ${v.odometerDate}`);
+  for (const v of m.vehicles) L.push(`- ${v.name}: ${fmtNum(v.odometer)} mi as of ${v.odometerDate}`);
   L.push("", "VENDORS");
   for (const v of m.vendors) L.push(`- ${v.name} (${v.trade}) ${v.phone} ${v.email}`.trimEnd());
   L.push("", `Total recorded spending: ${money(m.total)}`);

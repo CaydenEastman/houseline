@@ -3,7 +3,7 @@
 // local morning has arrived, it works out what is overdue or due today and sends a Web Push notification.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
-import { dueInfo } from "./due.js";
+import { dueInfo, reminderState, localParts } from "./due.js";
 
 const SITE = "https://caydeneastman.github.io/man-of-the-house/";
 const WINDOW_HOURS = 4; // if the hourly job was late or missed, still send within 4 hours after the chosen hour
@@ -16,12 +16,6 @@ function same(a: string, b: string) { // constant-time compare
   if (a.length !== b.length) return false;
   let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
-}
-
-function localParts(tz: string, now = new Date()) {
-  const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" });
-  const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-  return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) };
 }
 
 async function summary(userId: string, today: string) {
@@ -68,13 +62,14 @@ Deno.serve(async (req) => {
 
     for (const s of subs ?? []) {
       out.checked++;
-      let lp; try { lp = localParts(s.tz); } catch { lp = localParts("UTC"); }
-      const since = (lp.hour - s.hour + 24) % 24;
-      if (!force && (since >= WINDOW_HOURS || s.last_sent_on === lp.date)) { out.notYet++; continue; }
+      let tz = s.tz; try { localParts(tz); } catch { tz = "UTC"; }
+      const lp = localParts(tz);
+      const rs = reminderState(tz, s.hour, s.last_sent_on, WINDOW_HOURS);
+      if (!force && !rs.due) { out.notYet++; continue; }
       const sum = await summary(s.user_id, lp.date);
       if (!sum || !sum.message) {
         out.nothingDue++;
-        if (!dry) await sb.from("push_subscriptions").update({ last_sent_on: lp.date }).eq("endpoint", s.endpoint);
+        if (!dry) await sb.from("push_subscriptions").update({ last_sent_on: rs.day }).eq("endpoint", s.endpoint);
         continue;
       }
       if (dry) { out.would.push(sum.message); continue; }
@@ -85,7 +80,7 @@ Deno.serve(async (req) => {
           { TTL: 12 * 3600, urgency: "normal" },
         );
         out.sent++;
-        await sb.from("push_subscriptions").update({ last_sent_on: lp.date }).eq("endpoint", s.endpoint);
+        await sb.from("push_subscriptions").update({ last_sent_on: rs.day }).eq("endpoint", s.endpoint);
       } catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
         if (code === 404 || code === 410) { await sb.from("push_subscriptions").delete().eq("endpoint", s.endpoint); out.removed++; }

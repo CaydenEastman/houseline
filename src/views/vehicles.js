@@ -1,7 +1,7 @@
 // Vehicles view: CRUD, odometer updates, per-vehicle tasks, inline service history.
 import { VEHICLE_SPECS, estimateMilesPerDay, addVehicle, updateVehicle, deleteVehicle, setOdometer, dueInfo, statusOf, sortTasks, daysBetween } from "../logic.js";
 import { seedFromProfile } from "../templates.js";
-import { fmtDate, fmtMoney } from "../dom.js";
+import { fmtDate, fmtMoney, plural, fmtNum } from "../dom.js";
 
 export const id = "vehicles";
 export const label = "Vehicles";
@@ -10,8 +10,7 @@ const DEFAULT_RATE = 33;
 const S = { add: null, edit: null, odo: null, confirmDel: null, open: {}, pending: null };
 
 const rid = () => "t-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-const mi = (n) => `${Number(n).toLocaleString()} mi`;
+const mi = (n) => `${fmtNum(n)} mi`;
 
 function paint(container, build, doc) {
   let fk = null;
@@ -52,7 +51,7 @@ function dueText(task, state, today) {
   try { info = dueInfo(task, state, today); } catch { return ""; }
   const d = info.daysUntil;
   if (task.kind === "mileage" && info.milesLeft != null && info.basis === "miles") {
-    if (info.milesLeft <= 0) return `${mi(Math.abs(info.milesLeft))} past due`;
+    if (info.milesLeft <= 0) return `${mi(Math.abs(info.milesLeft))} overdue`;
     return `~${mi(info.milesLeft)} left${d != null ? ` (≈ ${approxWeeks(d)})` : ""}`;
   }
   if (d == null) return "";
@@ -142,10 +141,10 @@ function vehicleCard(ctx, state, today, v, rerender) {
       ? h("div", { class: "v-confirm", role: "alertdialog", "aria-label": `Delete ${v.name}?` },
           h("p", { text: `Delete "${v.name}" and its ${plural(tasks.length, "task")}? Past history entries are kept.` }),
           h("div", { class: "v-actions" },
-            h("button", { type: "button", class: "btn danger", text: "Yes, delete", "data-fk": `vd-yes-${v.id}`,
+            h("button", { type: "button", class: "btn danger", text: "Delete", "data-fk": `vd-yes-${v.id}`,
               onclick: () => {
                 try { const next = deleteVehicle(ctx.getState(), v.id); S.confirmDel = null; S.pending = "v-veh-add"; ctx.commit(next, `Deleted ${v.name}`); }
-                catch (e) { ctx.toast(e.message); }
+                catch (e) { ctx.toast(e.message || "Something went wrong.", { error: true }); }
               } }),
             h("button", { type: "button", class: "btn", text: "Cancel", "data-fk": `vd-no-${v.id}`, onclick: () => { S.confirmDel = null; S.pending = `vd-${v.id}`; rerender(); } })))
       : h("div", { class: "v-actions" },
@@ -179,7 +178,7 @@ function addTasks(ctx, v, rerender) {
     if (!fresh.length) { ctx.toast("Nothing to add. Every standard task for this vehicle is already there."); return; }
     S.pending = `addtasks-${v.id}`;
     ctx.commit({ ...st, tasks: [...st.tasks, ...fresh] }, `Added ${fresh.length} task${fresh.length === 1 ? "" : "s"} for ${v.name}`);
-  } catch (e) { ctx.toast(e.message || "Couldn't add vehicle tasks."); }
+  } catch (e) { ctx.toast(e.message || "Couldn't add vehicle tasks.", { error: true }); }
 }
 
 const EXTRA_KEYS = ["year", "make", "model", "manualUrl", ...VEHICLE_SPECS.map((x) => x.key)];

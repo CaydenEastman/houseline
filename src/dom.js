@@ -36,6 +36,17 @@ export function fmtDate(iso, opts = { month: "short", day: "numeric", year: "num
   return iso ? isoToLocalDate(iso).toLocaleDateString(undefined, opts) : "";
 }
 
+/** "3 tasks", "1 task". The one pluralizer for the whole app. */
+export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** 12,345: one number format everywhere (never "12.345" on one screen and "12,345" on another). */
+export const fmtNum = (n) => Number(n).toLocaleString("en-US");
+/** $1,234.50 */
+export const money = (n) => `$${(Math.round(Number(n) * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** "$1,234" (whole dollars, for estimates) */
+export const dollars = (n) => `$${Math.round(Number(n)).toLocaleString("en-US")}`;
+/** Miles left on a mileage task: one wording on every screen. */
+export const milesText = (left) => (left <= 0 ? `${fmtNum(Math.abs(left))} mi overdue` : `~${fmtNum(left)} mi left`);
+
 export function fmtMoney(n) {
   return n == null ? "" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n);
 }

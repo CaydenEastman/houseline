@@ -2,7 +2,7 @@
 import { addSupply, updateSupply, deleteSupply, updateEmergency, daysBetween } from "../logic.js";
 import { SUPPLY_STARTERS } from "../templates.js";
 import { readiness, REQUIREMENTS, emergencySheetHTML, emergencySheetText } from "../readiness.js";
-import { fmtDate } from "../dom.js";
+import { fmtDate, plural } from "../dom.js";
 
 export const id = "emergency";
 export const label = "Emergency";
@@ -14,7 +14,6 @@ const MAX_CONTACTS = 12;
 const S = { sup: null, confirmDel: null, info: null, infoDirty: false, infoMsg: "", infoErr: "", sheetMsg: "", pending: null };
 
 const rid = () => "t-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const num = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10));
 
 function paint(container, build, doc) {
@@ -140,8 +139,8 @@ function supplyCard(ctx, state, today, s, rerender) {
       ? h("div", { class: "v-confirm", role: "alertdialog", "aria-label": `Delete ${s.name}?` },
           h("p", { text: `Delete "${s.name}" from your supplies?` }),
           h("div", { class: "v-actions" },
-            h("button", { type: "button", class: "btn danger", text: "Yes, delete", "data-fk": `sd-yes-${s.id}`,
-              onclick: () => { try { const next = deleteSupply(ctx.getState(), s.id); S.confirmDel = null; S.pending = "v-sup-add"; ctx.commit(next, `Deleted ${s.name}`); } catch (e) { ctx.toast(e.message); } } }),
+            h("button", { type: "button", class: "btn danger", text: "Delete", "data-fk": `sd-yes-${s.id}`,
+              onclick: () => { try { const next = deleteSupply(ctx.getState(), s.id); S.confirmDel = null; S.pending = "v-sup-add"; ctx.commit(next, `Deleted ${s.name}`); } catch (e) { ctx.toast(e.message || "Something went wrong.", { error: true }); } } }),
             h("button", { type: "button", class: "btn", text: "Cancel", "data-fk": `sd-no-${s.id}`, onclick: () => { S.confirmDel = null; S.pending = `sd-${s.id}`; rerender(); } })))
       : h("div", { class: "v-actions" },
           h("button", { type: "button", class: "btn subtle", "data-fk": `se-${s.id}`, "aria-label": `Edit ${s.name}`, text: "Edit",

@@ -118,7 +118,8 @@ export function dueInfo(task, state, today) {
       const { rate } = estimateMilesPerDay(v, today);
       const days = Math.min(MAX_INTERVAL_DAYS, Math.ceil(milesLeft / rate));
       // Count from the day the odometer was last read, not from today: a stale reading means less time is left.
-      const from = isValidISO(v.odometerDate) && v.odometerDate < today ? v.odometerDate : today;
+      let from = isValidISO(v.odometerDate) && v.odometerDate < today ? v.odometerDate : today;
+      if (isValidISO(task.lastDone) && task.lastDone > from && task.lastDone <= today) from = task.lastDone;
       est = addDays(from, days);
     }
     let due = est;
@@ -146,4 +147,22 @@ export function statusOf(task, today, state) {
   }
   const threshold = Math.min(14, Math.max(7, task.intervalDays * 0.1));
   return days <= threshold ? "due-soon" : "ok";
+}
+
+/** Local calendar date and hour for a time zone. */
+export function localParts(tz, now = new Date()) {
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" });
+  const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) };
+}
+
+/**
+ * Decides whether a phone is due its daily reminder now. `day` is the local date on which the chosen hour fell, which
+ * is what "already sent" is keyed on: for a 10pm reminder, the 12am run is still the same reminder, not a new one.
+ */
+export function reminderState(tz, hour, lastSentOn, windowHours, now = new Date()) {
+  const lp = localParts(tz, now);
+  const since = (lp.hour - hour + 24) % 24;
+  const day = localParts(tz, new Date(now.getTime() - since * 3600e3)).date;
+  return { due: since < windowHours && lastSentOn !== day, day, localDate: lp.date };
 }

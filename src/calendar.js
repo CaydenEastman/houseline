@@ -1,5 +1,6 @@
 // Calendar data for the month-grid view. Pure: never reads the clock, never mutates its input.
 // Everything is a local calendar date string (YYYY-MM-DD); date math is UTC-safe (no DST drift).
+import { plural } from "./dom.js";
 import { addDays, daysBetween, isValidISO, dueInfo, statusOf } from "./logic.js";
 
 export const TYPE_ORDER = ["task", "supply", "warranty", "done", "skipped"];
@@ -10,7 +11,6 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const pad2 = (n) => String(n).padStart(2, "0");
 const isoYMD = (y, m, d) => `${String(y).padStart(4, "0")}-${pad2(m)}-${pad2(d)}`;
 const yearOf = (iso) => +iso.slice(0, 4);
-const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const withCommas = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const short = (iso) => `${MONTHS[+iso.slice(5, 7) - 1]} ${+iso.slice(8, 10)}`;
 
@@ -77,7 +77,7 @@ function mk(fields) {
 function taskDetail(task, info, status, today) {
   if (status === "snoozed") return `snoozed until ${short(task.snoozedUntil)}`;
   if (status === "overdue") {
-    if (info.milesLeft != null && info.milesLeft < 0) return `${withCommas(-info.milesLeft)} mi past due`;
+    if (info.milesLeft != null && info.milesLeft < 0) return `${withCommas(-info.milesLeft)} mi overdue`;
     return `${plural(Math.abs(info.daysUntil ?? 0), "day")} overdue`;
   }
   if (info.basis === "miles" && info.milesLeft != null) return `~${withCommas(info.milesLeft)} mi left (estimated date)`;

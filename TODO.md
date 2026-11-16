@@ -48,7 +48,8 @@ Today: one notification a day, only when the app is opened.
 - [x] iPhone only delivers web push to apps added to the Home Screen (iOS 16.4+); the install tip is shown in Settings, Reminders.
 - [ ] Optional email digest (Resend or Postmark) for people who do not install, and as a fallback.
 - [ ] Optional SMS later (Twilio); costs money per message.
-- [x] Pick the hour (done). Still to do:  quiet days, what counts as "due soon".
+- [x] Pick the hour.
+- [ ] Quiet days, and what counts as "due soon".
 
 ## 5. A running server (only if needed)
 
@@ -90,3 +91,20 @@ You may not need your own server. Managed backend + a cron function covers every
 3. Web Push with a daily cron (item 4). This is the "it actually reminds me" moment.
 4. Household sharing (item 3).
 5. Store apps and billing only if you want to distribute it widely.
+
+## 9. From the full app review (Nov 2026), still open
+
+Fixed already: completion id collisions between phones, edits made while signed out, stale odometer after Done, photos taken signed out, odometer merge, evening reminders sent twice, off-screen snooze/delete panels, hidden import errors, big-text clipping, one wording for overdue, one set of number/money/plural helpers, Today "Later" button.
+
+- [ ] Join flow: say "nothing is lost" when the joiner has no tasks of their own, give counts when they do, offer "Download my data" first.
+- [ ] After a first sign-in, ask "Were you given a code?" and make the invite instructions describe one path only.
+- [ ] Join code errors: separate typo / expired / already used; auto-uppercase; "offline" instead of "Failed to fetch".
+- [ ] Invite attempt limit does not count failed tries (the failure rolls the count back). Needs a different design.
+- [ ] `client_errors`: stop callers from setting their own timestamp (cap can be dodged).
+- [ ] Turn push off for this phone when signing out.
+- [ ] Delete account: remove photos only after the account deletion succeeds.
+- [ ] Tighten database grants (`revoke all` from authenticated on household tables) and use an empty `search_path` in functions.
+- [ ] Vehicle step in setup: ask when the oil was last changed so a new car does not start overdue.
+- [ ] Tour/tab wording ("You" is vague), calendar legend symbols, jargon (inventory, vendors).
+- [ ] Reminder offer after the first Done.
+- [ ] Rare races: history shards written without a conditional write; cached household id after leaving on another device; import limits for tags/links.

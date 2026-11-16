@@ -1,5 +1,6 @@
 // First-run setup wizard (also used by Settings > Re-run setup).
 // renderWizard is idempotent: step state lives in module scope, so a shell re-render keeps your place.
+import { fmtNum } from "./dom.js";
 import { seedFromProfile } from "./templates.js";
 import { addVehicle } from "./logic.js";
 
@@ -139,10 +140,10 @@ export function renderWizard(container, ctx, opts = {}) {
     return h("div", {},
       h("p", { class: "lead", text: "Add each vehicle you maintain. We’ll create mileage-based reminders (oil, tires, brakes) for each one. You can skip this and add vehicles later." }),
       existing.length ? h("ul", { class: "plain-list" }, existing.map((v) =>
-        h("li", {}, h("strong", { text: v.name }), ` · ${v.odometer.toLocaleString()} mi (already added)`))) : null,
+        h("li", {}, h("strong", { text: v.name }), ` · ${fmtNum(v.odometer)} mi (already added)`))) : null,
       W.newVehicles.length ? h("ul", { class: "plain-list", "aria-label": "Vehicles to add" }, W.newVehicles.map((v, i) =>
         h("li", { class: "li-row" },
-          h("span", {}, h("strong", { text: v.name }), ` · ${v.odometer.toLocaleString()} mi`),
+          h("span", {}, h("strong", { text: v.name }), ` · ${fmtNum(v.odometer)} mi`),
           h("button", { type: "button", class: "btn subtle danger", text: "Remove", "aria-label": `Remove ${v.name}`,
             onclick: () => { W.newVehicles.splice(i, 1); draw(false); } })))) : null,
       h("form", { class: "inline-form", novalidate: true, onsubmit: (e) => { e.preventDefault(); if (tryAddVehicle(true)) draw(false); setTimeout(() => { const n = container.querySelector("#w-vname"); if (n && !W.error) n.focus(); }, 0); } },
@@ -200,7 +201,7 @@ export function renderWizard(container, ctx, opts = {}) {
           W.rerun
             ? h("button", { type: "button", class: "btn subtle", text: "Cancel", onclick: cancel })
             : h("button", { type: "button", class: "btn subtle", text: "Skip setup", onclick: () => finish(true) })),
-        W.rerun ? null : h("p", { class: "hint", text: "Skipping loads a generic starter set; you can re-run setup from Settings any time." })));
+        W.rerun ? null : h("p", { class: "hint", text: "Skipping loads a standard house and yard list (about 40 tasks, for a cold-climate home). You can re-run setup from Settings any time." })));
     if (moveFocus) { const hd = container.querySelector("#w-heading"); if (hd) hd.focus(); }
     else if (keepId) { const el = container.querySelector("#" + keepId); if (el) el.focus(); }
   }

@@ -1,5 +1,6 @@
 // Monthly recap + streaks. Pure; `today` is a parameter.
 import { addDays, statusOf } from "./logic.js";
+import { money, plural } from "./dom.js";
 import { CAT_LABEL } from "./insights.js";
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -40,7 +41,6 @@ export function monthlyRecap(state, month, today) {
 }
 
 export function recapText(r) {
-  const money = (n) => `$${n.toFixed(2)}`;
   const L = [`Home recap for ${r.label}`];
   L.push(`${r.done} ${r.done === 1 ? "task" : "tasks"} done${r.skipped ? `, ${r.skipped} skipped` : ""}.`);
   if (r.spent > 0) L.push(`Spent ${money(r.spent)}${r.biggest ? `; biggest job: ${r.biggest.title} (${money(r.biggest.cost)})` : ""}.`);

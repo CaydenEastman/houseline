@@ -3,7 +3,7 @@
 import * as ICS from "../ics.js";
 import * as CAL from "../calendar.js";
 import { addDays, snoozeTask, dueInfo } from "../logic.js";
-import { isoToLocalDate } from "../dom.js";
+import { isoToLocalDate, plural } from "../dom.js";
 
 export const id = "calendar";
 export const label = "Calendar";
@@ -162,7 +162,6 @@ function statusWord(e) {
 }
 const typeWord = (e) => ({ task: "Task", supply: "Supply", warranty: "Warranty", done: "Done", skipped: "Skipped" }[e.type] || "");
 const longDay = (iso) => isoToLocalDate(iso).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const daysIn = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
 const weekdayOf = (iso) => new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10))).getUTCDay();
 
@@ -262,7 +261,7 @@ function buildGrid(ctx, rerender) {
           let tid = ""; try { tid = ev.dataTransfer.getData("text/plain"); } catch { /* none */ }
           if (!tid || typeof ctx.commit !== "function") return;
           try { ctx.commit(snoozeTask(ctx.getState(), tid, iso, today), `Moved to ${iso}`); }
-          catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that."); }
+          catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that.", { error: true }); }
         } : null,
       },
       h("span", { class: "v-daynum", "aria-hidden": "true", text: String(+iso.slice(8, 10)) }),
@@ -296,7 +295,7 @@ function buildGrid(ctx, rerender) {
     const movable = !!task && !e.projected && e.type === "task" && typeof ctx.commit === "function";
     const move = (iso) => {
       try { ctx.commit(snoozeTask(ctx.getState(), task.id, iso, today), `Moved to ${iso}: ${task.title}`); }
-      catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that."); }
+      catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that.", { error: true }); }
     };
     let minMove = addDays(today, 1);
     try { const d = movable ? dueInfo(task, state, today).dueDate : null; if (d && d >= today) minMove = addDays(d, 1); } catch { /* keep tomorrow */ }
@@ -314,7 +313,7 @@ function buildGrid(ctx, rerender) {
         h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit: ${e.title}`, "data-fk": `v-evt-edit-${e.id}`, onclick: () => ctx.openTaskForm(task) })) : null,
       movable ? h("div", { class: "v-move" },
         h("label", { for: `v-mv-${e.id}`, class: "v-hint", text: "Move to a later day:" }), dateIn,
-        h("button", { type: "button", class: "btn v-small", text: "Move", "aria-label": `Move ${e.title}`, onclick: () => { if (dateIn.value) move(dateIn.value); else if (typeof ctx.toast === "function") ctx.toast("Pick a date first."); } })) : null);
+        h("button", { type: "button", class: "btn v-small", text: "Move", "aria-label": `Move ${e.title}`, onclick: () => { if (dateIn.value) move(dateIn.value); else if (typeof ctx.toast === "function") ctx.toast("Pick a date first.", { error: true }); } })) : null);
   };
   const announce = sel ? `${longDay(sel)}: ${selList.length === 0 ? "nothing scheduled" : plural(selList.length, "item")}` : "No day selected";
   const panel = h("section", { class: "v-day-panel", "aria-labelledby": "v-day-h" },

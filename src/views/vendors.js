@@ -69,8 +69,8 @@ function build(ctx, rerender) {
     S.confirmDel === v.id
       ? h("div", { class: "v-confirm", role: "group", "aria-label": `Delete ${v.name}?` }, h("p", { text: `Delete ${v.name}?` }),
         h("div", { class: "v-actions" },
-          h("button", { type: "button", class: "btn", text: "Keep", onclick: () => { S.confirmDel = null; rerender(); } }),
-          h("button", { type: "button", class: "btn primary solid danger-solid", text: "Delete", onclick: () => { S.confirmDel = null; try { ctx.commit(deleteVendor(state, v.id), `Deleted ${v.name}`); } catch { rerender(); } } })))
+          h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => { S.confirmDel = null; rerender(); } }),
+          h("button", { type: "button", class: "btn danger", text: "Delete", onclick: () => { S.confirmDel = null; try { ctx.commit(deleteVendor(state, v.id), `Deleted ${v.name}`); } catch { rerender(); } } })))
       : h("div", { class: "v-actions" },
         h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit ${v.name}`, onclick: () => { S.form = blank(v); S.pending = "v-vf-name"; rerender(); } }),
         h("button", { type: "button", class: "btn v-small", text: "Delete", "aria-label": `Delete ${v.name}`, onclick: () => { S.confirmDel = v.id; rerender(); } })));

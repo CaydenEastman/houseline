@@ -1,4 +1,5 @@
 // Small helpers shared by the newer views.
+import { plural, money, milesText } from "../dom.js";
 export function makePaint(S) {
   return function paint(container, build, doc) {
     let fk = null;
@@ -16,12 +17,10 @@ export function makePaint(S) {
     }
   };
 }
-export const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-export const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export { plural, money };
 export function dueWords(r) {
   if (r.task.kind === "mileage" && r.info.milesLeft != null && r.info.basis === "miles") {
-    const m = r.info.milesLeft;
-    return m <= 0 ? `${Math.abs(m).toLocaleString()} mi past due` : `~${m.toLocaleString()} mi left`;
+    return milesText(r.info.milesLeft);
   }
   const d = r.days;
   if (d < 0) return plural(-d, "day") + " overdue";

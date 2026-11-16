@@ -1,5 +1,5 @@
 // App shell: header, Today banner, navigation, Tasks view, task/complete/settings dialogs, toasts, sync.
-import { h as hBase, localToday, isoToLocalDate, fmtDate, safeUrl } from "./dom.js";
+import { h as hBase, localToday, isoToLocalDate, fmtDate, safeUrl, plural, fmtNum, milesText } from "./dom.js";
 import { CATEGORIES } from "./templates.js";
 import {
   statusOf, dueInfo, sortTasks, summary, markDone, skipTask, snoozeTask, unsnoozeTask,
@@ -48,8 +48,7 @@ const TABS = [
 // Screens reached from the Home and You tiles. The bottom bar keeps the parent lit and a back bar leads home.
 const PARENT = { tasks: "home", inventory: "home", vehicles: "home", vendors: "home", emergency: "home", history: "you", insights: "you" };
 
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const fmtN = (n) => Number(n).toLocaleString();
+const fmtN = fmtNum;
 const newId = () => "t-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const errMsg = (e, fallback = "Something went wrong.") => (e && e.message ? e.message : fallback);
 
@@ -126,13 +125,20 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       undoToast = item;
     }
     els.status.append(item);
+    // Messages must show above an open dialog too (a failed import, say): the top layer is the only place that is above it.
+    try {
+      if (typeof els.status.showPopover === "function") {
+        if (!els.status.hasAttribute("popover")) els.status.setAttribute("popover", "manual");
+        if (!els.status.matches(":popover-open")) els.status.showPopover();
+      }
+    } catch { /* older browsers: the message simply shows in the normal layer */ }
     while (els.status.children.length > 3) {
       const first = Array.from(els.status.children).find((c) => c !== undoToast);
       if (!first) break;
       first.remove();
     }
-    // Undo stays available for at least 15 s (20 s here); plain messages are shorter.
-    timer = setTimeout(remove, ms || (undoBtn ? 20000 : error ? 8000 : 4500));
+    // Undo stays available for 12 s; plain messages are shorter.
+    timer = setTimeout(remove, ms || (undoBtn ? 12000 : error ? 8000 : 4500));
     item._remove = remove;
     return item;
   }
@@ -204,7 +210,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
   const ctx = {
     doc, h, getState: () => state, commit, today: () => today, store, me, names,
-    openTaskForm: (t) => openTaskForm(t || null), toast: (m) => void toast(m), photos, saveFile,
+    openTaskForm: (t) => openTaskForm(t || null), toast: (m, opts) => void toast(m, opts), photos, saveFile,
     newId,
     openSettings: (trigger) => openSettings(trigger || null),
     openAccount: (trigger) => openAccount(trigger || null),
@@ -280,7 +286,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const d = info.daysUntil == null ? 0 : info.daysUntil;
     if (task.kind === "mileage" && info.milesLeft != null && info.basis === "miles") {
       const m = info.milesLeft;
-      if (m <= 0) return m === 0 ? "Due now (mileage reached)" : `Due now: ${fmtN(-m)} mi past due`;
+      if (m <= 0) return m === 0 ? "Due now (mileage reached)" : `Due now: ${fmtN(-m)} mi overdue`;
       const w = weeksText(d);
       return `~${fmtN(m)} mi left` + (w ? ` (≈ ${w})` : "");
     }
@@ -420,9 +426,9 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
     // assignee filter (cloud / shared households only)
     const cloud = store.mode === "cloud";
-    refs.assigneeWrap.hidden = !cloud;
-    if (cloud) {
-      const ids = [...new Set(state.tasks.map((t) => t.assignee).filter(Boolean))].filter((i) => i !== me.id);
+    const ids = [...new Set(state.tasks.map((t) => t.assignee).filter(Boolean))].filter((i) => i !== me.id);
+    refs.assigneeWrap.hidden = !cloud || !ids.length; // nobody else has tasks assigned: the filter would be an empty box
+    if (cloud && ids.length) {
       const opts = [["all", "Everyone"], ["me", "Me"], ["none", "Unassigned"], ...ids.map((i) => [i, personName(i)])];
       if (!opts.some((o) => o[0] === tv.assignee)) tv.assignee = "all";
       refs.assignee.replaceChildren(...opts.map(([v, l]) => h("option", { value: v, text: l, selected: tv.assignee === v })));
@@ -858,11 +864,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   function openSettings(trigger) {
     const out = h("div", { class: "settings-out" });
     const paste = h("textarea", { id: "s-paste", rows: "3", placeholder: "Paste backup text here" });
+    const importErr = h("p", { class: "form-error", role: "alert", hidden: true });
+    const showImportErr = (msg) => { importErr.textContent = msg || ""; importErr.hidden = !msg; };
     const fileIn = h("input", { type: "file", id: "s-file", accept: "application/json,.json", hidden: true });
 
     async function doImport(text, label) {
       let next;
-      try { next = importJSON(text); } catch (e) { toast("Import failed: " + errMsg(e, "invalid file."), { error: true }); return; }
+      showImportErr("");
+      try { next = importJSON(text); } catch (e) { const msg = "Import failed: " + errMsg(e, "invalid file."); showImportErr(msg); toast(msg, { error: true }); return; }
       const ok = await confirmDialog({
         title: "Replace your data?",
         message: `This replaces your current ${plural(state.tasks.length, "task")} with ${plural(next.tasks.length, "task")} from ${label}. Photos are not part of backups. You can undo right after.`,
@@ -997,7 +1006,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", text: "Export backup", onclick: exportNow }),
           h("button", { type: "button", class: "btn", text: "Import backup", onclick: () => fileIn.click() }), fileIn),
         out,
-        h("div", { class: "field" }, h("label", { for: "s-paste", text: "Or paste backup text" }), paste,
+        h("div", { class: "field" }, h("label", { for: "s-paste", text: "Or paste backup text" }), paste, importErr,
           h("button", { type: "button", class: "btn", text: "Import pasted text", onclick: () => { if (!paste.value.trim()) { toast("Paste some backup text first.", { error: true }); paste.focus(); return; } doImport(paste.value, "pasted text"); } }))),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
     ], { trigger, focus: "#s-rerun" });

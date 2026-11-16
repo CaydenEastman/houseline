@@ -1,6 +1,6 @@
 // Inventory view: home items (appliances, HVAC, ...) with warranty badges, photos, linked tasks.
 import { addItem, updateItem, deleteItem, dueInfo, statusOf, sortTasks, daysBetween } from "../logic.js";
-import { fmtDate } from "../dom.js";
+import { fmtDate, plural, milesText } from "../dom.js";
 
 export const id = "inventory";
 export const label = "Inventory";
@@ -15,7 +15,6 @@ const MAX_PHOTOS = 3;
 const S = { form: null, confirmDel: null, pending: null };
 
 const rid = () => "t-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 function paint(container, build, doc) {
   let fk = null;
@@ -58,7 +57,7 @@ function dueText(task, state, today) {
   try { info = dueInfo(task, state, today); } catch { return ""; }
   if (task.snoozedUntil && task.snoozedUntil > today) return `Snoozed until ${fmtDate(task.snoozedUntil)}`;
   if (info.basis === "miles" && info.milesLeft != null) {
-    return info.milesLeft <= 0 ? `${Math.abs(info.milesLeft).toLocaleString()} mi overdue` : `~${info.milesLeft.toLocaleString()} mi left`;
+    return milesText(info.milesLeft);
   }
   const d = info.daysUntil;
   if (d == null) return "";
@@ -137,14 +136,14 @@ function itemCard(ctx, state, today, item, rerender) {
       ? h("div", { class: "v-confirm", role: "alertdialog", "aria-label": `Delete ${item.name}?` },
           h("p", { text: `Delete "${item.name}"? Its photos are removed. Linked tasks stay but lose the link.` }),
           h("div", { class: "v-actions" },
-            h("button", { type: "button", class: "btn danger", "data-fk": `del-yes-${item.id}`, text: "Yes, delete",
+            h("button", { type: "button", class: "btn danger", "data-fk": `del-yes-${item.id}`, text: "Delete",
               onclick: () => {
                 try {
                   const next = deleteItem(state, item.id);
                   S.confirmDel = null; S.pending = "v-inv-add";
                   ctx.commit(next, `Deleted ${item.name}`);
                   (item.photoIds || []).forEach((p) => { try { Promise.resolve(ctx.photos.remove(p)).catch(() => {}); } catch { /* ignore */ } });
-                } catch (e) { ctx.toast(e.message); }
+                } catch (e) { ctx.toast(e.message || "Something went wrong.", { error: true }); }
               } }),
             h("button", { type: "button", class: "btn", text: "Cancel", "data-fk": `del-no-${item.id}`,
               onclick: () => { S.confirmDel = null; S.pending = `del-${item.id}`; rerender(); } })))

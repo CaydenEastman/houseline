@@ -211,7 +211,7 @@ body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 .tasks { padding-bottom: 1rem; }
 
 /* Task rows */
-.task { flex-wrap: wrap; }
+.task { flex-wrap: nowrap; } /* the column stays one column on phones: a wrapping column pushed the snooze/delete panel off-screen */
 .task.snoozed { border-left-color: var(--muted); opacity: .85; }
 .due.snoozed { color: var(--muted); }
 .due.snoozed .dot { background: var(--muted); }
@@ -229,6 +229,7 @@ body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 .wrap-actions { flex-wrap: wrap; }
 .row-panel input[type="date"] { font: inherit; color: var(--text); background: var(--bg); border: 1.5px solid var(--muted); border-radius: 8px; padding: .5rem .6rem; min-height: 2.75rem; }
 @media (min-width: 40rem) {
+  .task { flex-wrap: wrap; }
   .task-actions { flex-direction: row; width: auto; align-items: center; }
   .task-more .btn { flex: none; }
   .task-main { flex: 1 1 18rem; }

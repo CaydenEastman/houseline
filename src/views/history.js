@@ -1,6 +1,6 @@
 // History view: completed/skipped log, filters, spend panel, photo viewer.
 import { historyFor, spend } from "../logic.js";
-import { fmtDate, fmtMoney } from "../dom.js";
+import { fmtDate, fmtMoney, fmtNum } from "../dom.js";
 
 export const id = "history";
 export const label = "History";
@@ -150,7 +150,7 @@ function entry(ctx, c, rerender) {
   const who = whoName(c, ctx);
   const meta = [];
   if (!skipped && c.cost != null) meta.push(fmtMoney(c.cost));
-  if (c.odometer != null) meta.push(`${Number(c.odometer).toLocaleString()} mi`);
+  if (c.odometer != null) meta.push(`${fmtNum(c.odometer)} mi`);
   if (who) meta.push(`${skipped ? "Skipped" : "Done"} by ${who}`);
   const photos = (c.photoIds || []).map((pid, i) => {
     const img = h("img", { class: "v-thumb-img", alt: "", width: "64", height: "64" });

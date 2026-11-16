@@ -161,7 +161,9 @@ export function dueInfo(task, state, today) {
       const { rate } = estimateMilesPerDay(v, today);
       const days = Math.min(MAX_INTERVAL_DAYS, Math.ceil(milesLeft / rate));
       // Count from the day the odometer was last read, not from today: a stale reading means less time is left.
-      const from = isValidISO(v.odometerDate) && v.odometerDate < today ? v.odometerDate : today;
+      // After a completion the clock restarts from that day (the reading it used may be older than the completion).
+      let from = isValidISO(v.odometerDate) && v.odometerDate < today ? v.odometerDate : today;
+      if (isValidISO(task.lastDone) && task.lastDone > from && task.lastDone <= today) from = task.lastDone;
       est = addDays(from, days);
     }
     let due = est;
@@ -401,8 +403,10 @@ function nextCompletionId(state, today, taskId, idFn) {
   if (typeof idFn === "function") return String(idFn());
   const used = new Set((state.completions || []).map((c) => c.id));
   let n = (state.completions || []).length + 1;
+  // A random tail keeps two phones that finish tasks on the same day offline from minting the same id.
+  const tail = () => Math.random().toString(36).slice(2, 6);
   let id;
-  do { id = `c-${today}-${n++}`; } while (used.has(id));
+  do { id = `c-${today}-${n++}-${tail()}`; } while (used.has(id));
   return id;
 }
 

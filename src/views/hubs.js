@@ -36,9 +36,9 @@ export const homeView = {
     const open = (s.supplies || []).length;
     tiles(container, ctx, "Home", "Everything you keep track of.", [
       { id: "tasks", icon: "✅", label: "All tasks", sub: plural((s.tasks || []).length, "task"), onclick: go(ctx, "tasks"), badge: badge(sum.overdue, "overdue", `${sum.overdue} overdue`) },
-      { id: "inventory", icon: "\u{1F4E6}", label: "Inventory", sub: `${plural((s.items || []).length, "item")}, warranties and manuals`, onclick: go(ctx, "inventory"), badge: badge(warr, "soon", `${warr} warranty alerts`) },
-      { id: "vehicles", icon: "\u{1F697}", label: "Vehicles", sub: `${plural((s.vehicles || []).length, "vehicle")} and mileage`, onclick: go(ctx, "vehicles"), badge: badge(milesDue, "overdue", `${milesDue} past due by mileage`) },
-      { id: "vendors", icon: "\u{1F4DE}", label: "Vendors", sub: `${plural((s.vendors || []).length, "contact")}: plumber, electrician and more`, onclick: go(ctx, "vendors") },
+      { id: "inventory", icon: "\u{1F4E6}", label: "Inventory", sub: (s.items || []).length ? `${plural(s.items.length, "item")}, warranties and manuals` : "Add appliances to keep warranties and manuals handy", onclick: go(ctx, "inventory"), badge: badge(warr, "soon", `${warr} warranty alerts`) },
+      { id: "vehicles", icon: "\u{1F697}", label: "Vehicles", sub: (s.vehicles || []).length ? `${plural(s.vehicles.length, "vehicle")} and mileage` : "Add a car to track mileage and service", onclick: go(ctx, "vehicles"), badge: badge(milesDue, "overdue", `${milesDue} overdue by mileage`) },
+      { id: "vendors", icon: "\u{1F4DE}", label: "Vendors", sub: (s.vendors || []).length ? `${plural(s.vendors.length, "contact")}: plumber, electrician and more` : "Save your plumber, electrician and other contacts", onclick: go(ctx, "vendors") },
       { id: "emergency", icon: "\u{1F6DF}", label: "Emergency", sub: `${open ? plural(open, "supply item") + " and " : ""}plans and contacts`, onclick: go(ctx, "emergency"), badge: badge(supplyIssues, "soon", `${supplyIssues} supply items expired or expiring`) },
     ]);
   },

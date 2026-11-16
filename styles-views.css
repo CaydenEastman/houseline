@@ -364,3 +364,29 @@ dialog *, .add-grid > * { min-width: 0; }
 .backups h4 { margin: 0 0 .35rem; }
 /* Tasks: both filter rows wrap instead of scrolling sideways */
 .wrap-chips { flex-wrap: wrap; overflow-x: visible; padding-bottom: 0; margin-bottom: .5rem; }
+
+/* ---- phone layout fixes ---- */
+/* messages live in the top layer so they show above an open dialog */
+.status[popover] { position: fixed; inset: auto; left: 50%; bottom: calc(var(--nav-h) + .75rem + env(safe-area-inset-bottom)); margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; color: inherit; transform: translateX(-50%); }
+@media (min-width: 40rem) { .status[popover] { bottom: 1rem; } }
+/* big text on a narrow phone: tiles and the calendar header wrap instead of being cut off */
+:root[data-text="xl"] .cards, :root[data-text="large"] .cards { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
+.v-cal-nav { flex-wrap: wrap; }
+.v-cal-grid { min-width: 0; border-spacing: 2px; }
+.v-cal-grid th { font-size: .68rem; letter-spacing: 0; }
+/* Today: below 360px the Done button drops under the title so the title keeps its width */
+@media (max-width: 22.5rem) {
+  .tf-card { grid-template-columns: auto 1fr; }
+  .tf-actions { grid-column: 1 / -1; grid-auto-flow: column; justify-content: space-between; justify-items: stretch; align-items: center; }
+  .tf-done { flex: 1; }
+}
+/* tap targets of at least 44px */
+.tf-edit { min-height: 2.75rem; min-width: 2.75rem; display: inline-flex; align-items: center; justify-content: center; }
+.task-help > summary, .tf-help > summary { padding-block: .7rem; }
+.help-links a, .task-help a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.v-bar-row { grid-template-columns: 5.5rem 1fr 5rem; }
+.btn.small { min-height: 2.75rem; }
+.hint + .btn, .hint + button { margin-top: .6rem; }
+[hidden] { display: none !important; }
+.v-vendor a[href^="tel:"], .v-card a[href^="tel:"] { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.tf-minor { display: inline-flex; gap: .2rem; align-items: center; }

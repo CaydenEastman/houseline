@@ -1,6 +1,7 @@
 // Persistence layer: cloud (claude `db` capability) with localStorage cache/fallback.
 // Everything degrades gracefully; nothing here throws into the UI except put/getPhoto contracts noted below.
 import * as storage from "./storage.js";
+import { photoIdsOf } from "./household.js";
 
 const DOC_STATE = "household/main";
 const PHOTO_PREFIX = "motH.photo.";
@@ -143,6 +144,11 @@ function mergeFields(b, m, t) {
   for (const k of new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(t)])) {
     const v = pick(b[k], m[k], t[k]);
     if (v !== undefined) out[k] = v;
+  }
+  // Two phones read the odometer: the higher reading wins, with its date and log (mileage only goes up).
+  if (typeof m.odometer === "number" && typeof t.odometer === "number" && !same(m.odometer, b.odometer) && !same(t.odometer, b.odometer)) {
+    const src = t.odometer > m.odometer ? t : m;
+    for (const k of ["odometer", "odometerDate", "odometerLog"]) { if (k in src) out[k] = src[k]; else delete out[k]; }
   }
   // Both sides completed the same task: the later date (and its odometer) wins instead of "mine".
   if (typeof m.lastDone === "string" && typeof t.lastDone === "string" && !same(m.lastDone, b.lastDone) && !same(t.lastDone, b.lastDone)) {
@@ -400,7 +406,7 @@ export async function createStore({ localStorage, claude, mergeUnownedLocal = fa
     void serialized;
   }
 
-  async function load() {
+  async function loadInner() {
     if (mode === "cloud") {
       try {
         const res = await withTimeout(Promise.all([db.doc(MAIN_PATH).get(), fetchHistory()]), loadTimeoutMs);
@@ -471,6 +477,12 @@ export async function createStore({ localStorage, claude, mergeUnownedLocal = fa
     const { state } = readLocal();
     lastSerialized = JSON.stringify(state);
     return state;
+  }
+
+  async function load() {
+    const st = await loadInner();
+    setTimeout(() => { uploadLocalPhotos(st); }, 0);
+    return st;
   }
 
   async function drain() {
@@ -570,6 +582,12 @@ export async function createStore({ localStorage, claude, mergeUnownedLocal = fa
 
   function save(state) {
     pending = state;
+    // Signed out (or cloud unreachable) on a phone that belongs to an account: what is cached right now is the last copy
+    // the cloud agreed with. Remember it as the merge ancestor so these edits are merged in at the next sign-in.
+    if (mode !== "cloud" && ls && !isDirty()) {
+      let owner = null; try { owner = ls.getItem(OWNER_KEY); } catch { /* ignore */ }
+      if (owner) { const prior = readLocal(); markDirty(prior.has ? prior.state : storage.freshState()); }
+    }
     try { // synchronous local cache so a commit right before the tab closes is never lost
       const ser = JSON.stringify(state);
       if (ser !== lastSerialized) { storage.validateState(state); const err = cacheLocal(state, ser); if (err && mode === "local") emit("error", `Could not save on this device: ${errMsg(err)}`); }
@@ -656,6 +674,20 @@ export async function createStore({ localStorage, claude, mergeUnownedLocal = fa
   }
 
   const photoKey = (id) => PHOTO_PREFIX + id;
+
+  // Photos taken while signed out live only in this phone's storage. Once signed in, copy them up so they are not lost.
+  async function uploadLocalPhotos(state) {
+    if (mode !== "cloud" || !ls) return;
+    for (const id of photoIdsOf(state)) {
+      try {
+        const local = ls.getItem(photoKey(id));
+        if (!local) continue;
+        const have = snapData(await db.doc(`photos/${id}`).get());
+        if (!have || typeof have.data !== "string") await db.doc(`photos/${id}`).set({ data: local, updatedAt: Number(now()) });
+        ls.removeItem(photoKey(id));
+      } catch { /* try again next time the app loads */ }
+    }
+  }
 
   async function putPhoto(id, dataUrl) {
     if (typeof id !== "string" || !id) throw new Error("Photo id is required.");
