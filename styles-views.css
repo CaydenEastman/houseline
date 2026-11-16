@@ -331,3 +331,11 @@ a, p, li, td, th, h1, h2, h3, h4, strong { overflow-wrap: anywhere; }
 .v-quick-row .btn { flex: 0 0 auto; }
 dialog { max-width: calc(100vw - 1rem); overflow-x: hidden; }
 dialog *, .add-grid > * { min-width: 0; }
+
+/* Household sharing and account data */
+.household, .your-data { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--line, rgba(128,128,128,.3)); }
+.household h4, .your-data h4 { margin: 0 0 .35rem; }
+.member-list { list-style: none; margin: .5rem 0; padding: 0; display: grid; gap: .4rem; }
+.member-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; overflow-wrap: anywhere; }
+.btn.small { padding: .2rem .55rem; min-height: 0; font-size: .85rem; }
+.invite-code { font: 700 1.6rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; text-align: center; padding: .6rem; margin: .4rem 0; border: 2px dashed currentColor; border-radius: .6rem; user-select: all; }

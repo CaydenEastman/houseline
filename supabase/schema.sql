@@ -148,3 +148,173 @@ do $$ begin
     alter publication supabase_realtime add table public.docs;
   end if;
 end $$;
+
+-- ===== Household sharing, leaving, and account deletion =====
+-- One household per person (sharing moves you into someone else's household, it never makes you a member of two).
+create unique index if not exists household_members_one_per_user on public.household_members(user_id);
+
+create table if not exists public.household_invites (
+  code text primary key check (code ~ '^[A-Z2-9]{8}$'),
+  household_id uuid not null references public.households(id) on delete cascade,
+  created_by uuid references auth.users(id) on delete set null,
+  expires_at timestamptz not null,
+  used_by uuid references auth.users(id) on delete set null,
+  used_at timestamptz
+);
+create index if not exists household_invites_hh_idx on public.household_invites(household_id);
+create table if not exists public.invite_attempts (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  at timestamptz not null default now()
+);
+create index if not exists invite_attempts_idx on public.invite_attempts(user_id, at);
+alter table public.household_invites enable row level security;
+alter table public.invite_attempts enable row level security;
+revoke all on public.household_invites, public.invite_attempts from anon, authenticated;
+
+-- Who is in my household, what is my role, and (owners only) the current invite code.
+create or replace function public.household_info()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare hh uuid; me text; inv jsonb;
+begin
+  hh := public.ensure_household();
+  select m.role into me from public.household_members m where m.household_id = hh and m.user_id = auth.uid();
+  if me = 'owner' then
+    select jsonb_build_object('code', i.code, 'expires_at', i.expires_at) into inv
+      from public.household_invites i where i.household_id = hh and i.used_at is null and i.expires_at > now()
+      order by i.expires_at desc limit 1;
+  end if;
+  return jsonb_build_object(
+    'household_id', hh, 'role', me, 'invite', inv,
+    'members', (select coalesce(jsonb_agg(jsonb_build_object('user_id', m.user_id, 'email', u.email, 'role', m.role, 'me', m.user_id = auth.uid()) order by m.created_at), '[]'::jsonb)
+                from public.household_members m join auth.users u on u.id = m.user_id where m.household_id = hh));
+end $$;
+
+-- Owner makes a one-time code that works for 7 days. A new code replaces any unused older one.
+create or replace function public.create_invite()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare hh uuid; c text := ''; b bytea; i int; alpha constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; exp timestamptz := now() + interval '7 days';
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can invite people';
+  end if;
+  if (select count(*) from public.household_members m where m.household_id = hh) >= 6 then
+    raise exception 'A household can have at most 6 people';
+  end if;
+  delete from public.household_invites where household_id = hh and used_at is null;
+  loop
+    b := uuid_send(gen_random_uuid()); c := '';
+    for i in 0..7 loop c := c || substr(alpha, (get_byte(b, i + 6) % 31) + 1, 1); end loop;
+    begin
+      insert into public.household_invites (code, household_id, created_by, expires_at) values (c, hh, auth.uid(), exp);
+      exit;
+    exception when unique_violation then null;
+    end;
+  end loop;
+  return jsonb_build_object('code', c, 'expires_at', exp);
+end $$;
+
+create or replace function public.cancel_invite()
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can cancel an invite';
+  end if;
+  delete from public.household_invites where household_id = hh and used_at is null;
+end $$;
+
+-- Join someone's household with their code. Your own (empty or solo) household is deleted: its data is replaced by theirs.
+create or replace function public.accept_invite(invite_code text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare mine uuid; inv public.household_invites; norm text;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from public.invite_attempts where at < now() - interval '1 day';
+  if (select count(*) from public.invite_attempts a where a.user_id = auth.uid() and a.at > now() - interval '1 hour') >= 10 then
+    raise exception 'Too many tries. Wait an hour and try again.';
+  end if;
+  insert into public.invite_attempts (user_id) values (auth.uid());
+  norm := upper(regexp_replace(coalesce(invite_code, ''), '[^A-Za-z0-9]', '', 'g'));
+  select * into inv from public.household_invites i where i.code = norm and i.used_at is null and i.expires_at > now() for update;
+  if not found then raise exception 'That code is not valid or has expired.'; end if;
+  mine := public.ensure_household();
+  if mine = inv.household_id then raise exception 'You are already in this household.'; end if;
+  if (select count(*) from public.household_members m where m.household_id = mine) > 1 then
+    raise exception 'Leave your current household before joining another one.';
+  end if;
+  if (select count(*) from public.household_members m where m.household_id = inv.household_id) >= 6 then
+    raise exception 'That household is full.';
+  end if;
+  delete from public.households where id = mine;  -- solo household: its documents and membership go with it
+  insert into public.household_members (household_id, user_id, role) values (inv.household_id, auth.uid(), 'member');
+  update public.household_invites set used_by = auth.uid(), used_at = now() where code = inv.code;
+  return inv.household_id;
+end $$;
+
+-- Leave a shared household and get a fresh one of your own. The owner has to remove everyone else first.
+create or replace function public.leave_household()
+returns uuid language plpgsql security definer set search_path = public as $$
+declare hh uuid; me text;
+begin
+  hh := public.ensure_household();
+  select m.role into me from public.household_members m where m.household_id = hh and m.user_id = auth.uid();
+  if (select count(*) from public.household_members m where m.household_id = hh) = 1 then return hh; end if; -- already alone
+  if me = 'owner' then raise exception 'Remove the other people first (or make someone else the owner).'; end if;
+  delete from public.household_members where household_id = hh and user_id = auth.uid();
+  return public.ensure_household();
+end $$;
+
+create or replace function public.remove_member(target uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  if target = auth.uid() then raise exception 'Use Leave to remove yourself.'; end if;
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can remove people';
+  end if;
+  delete from public.household_members where household_id = hh and user_id = target;
+  if not found then raise exception 'That person is not in your household.'; end if;
+end $$;
+
+create or replace function public.make_owner(target uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can do that';
+  end if;
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = target) then raise exception 'That person is not in your household.'; end if;
+  update public.household_members set role = 'owner' where household_id = hh and user_id = target;
+  update public.household_members set role = 'member' where household_id = hh and user_id = auth.uid() and target <> auth.uid();
+end $$;
+
+-- Permanently delete the caller's account. Alone in the household: the household and all its data go too.
+-- Others in it: the oldest remaining person becomes owner and keeps the shared data. (Photo files are removed by the app first.)
+create or replace function public.delete_my_account()
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid; me text; heir uuid;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  select m.household_id, m.role into hh, me from public.household_members m where m.user_id = auth.uid() limit 1;
+  if hh is not null then
+    if (select count(*) from public.household_members m where m.household_id = hh) = 1 then
+      delete from public.households where id = hh;
+    else
+      if me = 'owner' then
+        select m.user_id into heir from public.household_members m where m.household_id = hh and m.user_id <> auth.uid() order by m.created_at limit 1;
+        update public.household_members set role = 'owner' where household_id = hh and user_id = heir;
+      end if;
+      delete from public.household_members where household_id = hh and user_id = auth.uid();
+    end if;
+  end if;
+  delete from auth.users where id = auth.uid();
+end $$;
+
+revoke all on function public.household_info(), public.create_invite(), public.cancel_invite(), public.accept_invite(text), public.leave_household(),
+  public.remove_member(uuid), public.make_owner(uuid), public.delete_my_account() from public, anon;
+grant execute on function public.household_info(), public.create_invite(), public.cancel_invite(), public.accept_invite(text), public.leave_household(),
+  public.remove_member(uuid), public.make_owner(uuid), public.delete_my_account() to authenticated;

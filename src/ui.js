@@ -23,6 +23,7 @@ import * as vendorsView from "./views/vendors.js";
 import { homeView, youView } from "./views/hubs.js";
 import { quickForm } from "./quickform.js";
 import * as pwa from "./pwa.js";
+import { exportEverything, clearLocalCache } from "./household.js";
 
 export { localToday };
 
@@ -1082,7 +1083,8 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           doc.defaultView.location.reload();
         });
         wrap.replaceChildren(
-          h("p", { class: "hint", text: `Signed in${s.user && s.user.email ? " as " + s.user.email : ""}. Your data syncs to your account, so it survives a lost phone and appears on your other phones.` }), out);
+          h("p", { class: "hint", text: `Signed in${s.user && s.user.email ? " as " + s.user.email : ""}. Your data syncs to your account, so it survives a lost phone and appears on your other phones.` }), out,
+          ...(doc.defaultView.motHousehold ? [householdPanel(), yourDataPanel()] : []));
         return;
       }
       const email = h("input", { type: "email", id: "s-email", autocomplete: "email", inputmode: "email", placeholder: "you@example.com", "aria-label": "Email address" });
@@ -1107,6 +1109,108 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     };
     paint();
     return wrap;
+  }
+
+  // ---------- Household sharing, data download, account deletion ----------
+  const hhApi = () => (doc.defaultView && doc.defaultView.motHousehold) || null;
+  const reloadApp = () => doc.defaultView.location.reload();
+
+  function householdPanel() {
+    const api = hhApi();
+    const ls = doc.defaultView.localStorage;
+    const wrap = h("div", { class: "household" }, h("h4", { text: "Household" }), h("p", { class: "hint", text: "Loading…" }));
+    const fail = (e) => toast(errMsg(e, "That didn't work. Try again."), { error: true });
+    const doneAndReload = (msg) => { toast(msg); setTimeout(reloadApp, 600); };
+    async function paint() {
+      let info;
+      try { info = await api.info(); } catch (e) { wrap.replaceChildren(h("h4", { text: "Household" }), h("p", { class: "hint", text: "Couldn't load your household right now. Check your connection." })); return; }
+      const owner = info.role === "owner";
+      const alone = info.members.length === 1;
+      const kids = [h("h4", { text: "Household" })];
+      kids.push(h("p", { class: "hint", text: alone
+        ? "Just you for now. Invite your partner or family so you all see and edit the same tasks, and everyone gets the morning reminder."
+        : "Everyone here sees and edits the same tasks, history and photos." }));
+      const list = h("ul", { class: "member-list" });
+      for (const m of info.members) {
+        const li = h("li", {}, h("span", { text: `${m.email || "Someone"}${m.me ? " (you)" : ""} · ${m.role === "owner" ? "owner" : "member"}` }));
+        if (owner && !m.me) {
+          li.append(" ",
+            h("button", { type: "button", class: "btn small", text: "Make owner", onclick: async () => {
+              if (!(await confirmDialog({ title: "Make them the owner?", message: `${m.email} will be able to invite and remove people. You become a regular member.`, confirmLabel: "Make owner" }))) return;
+              try { await api.makeOwner(m.user_id); toast("Done."); paint(); } catch (e) { fail(e); }
+            } }), " ",
+            h("button", { type: "button", class: "btn small", text: "Remove", onclick: async () => {
+              if (!(await confirmDialog({ title: "Remove from household?", message: `${m.email} will no longer see these tasks. They keep a copy of what is already on their phone.`, confirmLabel: "Remove", danger: true }))) return;
+              try { await api.remove(m.user_id); toast("Removed."); paint(); } catch (e) { fail(e); }
+            } }));
+        }
+        list.append(li);
+      }
+      kids.push(list);
+      if (owner) {
+        if (info.invite) {
+          const left = Math.max(1, Math.ceil((new Date(info.invite.expires_at) - Date.now()) / 86400000));
+          kids.push(
+            h("p", { class: "hint", text: `Give this code to the person (it works once and expires in ${left} day${left === 1 ? "" : "s"}). They sign in, then go to You, Settings, Account, Household, Join with a code.` }),
+            h("p", { class: "invite-code", id: "s-invite-code", text: info.invite.code }),
+            h("div", { class: "row-panel-actions wrap-actions" },
+              h("button", { type: "button", class: "btn", id: "s-invite-copy", text: "Copy code", onclick: async () => { try { await doc.defaultView.navigator.clipboard.writeText(info.invite.code); toast("Copied."); } catch { toast("Select the code and copy it.", { error: true }); } } }),
+              h("button", { type: "button", class: "btn", id: "s-invite-cancel", text: "Cancel invite", onclick: async () => { try { await api.cancelInvite(); paint(); } catch (e) { fail(e); } } })));
+        } else if (info.members.length < 6) {
+          kids.push(h("button", { type: "button", class: "btn", id: "s-invite", text: "Invite someone", onclick: async () => { try { await api.invite(); paint(); } catch (e) { fail(e); } } }));
+        }
+      }
+      if (alone) {
+        const code = h("input", { type: "text", id: "s-join-code", autocomplete: "off", autocapitalize: "characters", placeholder: "Code from the owner", maxlength: "12" });
+        kids.push(h("div", { class: "field" }, h("label", { for: "s-join-code", text: "Join someone else's household" }), code),
+          h("button", { type: "button", class: "btn", id: "s-join", text: "Join with a code", onclick: async () => {
+            if (!code.value.trim()) { toast("Type the code first.", { error: true }); code.focus(); return; }
+            if (!(await confirmDialog({ title: "Join this household?", message: "The tasks and history in YOUR account will be replaced by theirs. If you want to keep yours, cancel and use Download all my data first.", confirmLabel: "Join", danger: true }))) return;
+            try { await api.accept(code.value); clearLocalCache(ls, "motH.v1"); doneAndReload("Joined. Loading the shared tasks…"); } catch (e) { fail(e); }
+          } }));
+      } else if (!owner) {
+        kids.push(h("button", { type: "button", class: "btn", id: "s-leave", text: "Leave this household", onclick: async () => {
+          if (!(await confirmDialog({ title: "Leave this household?", message: "You keep a copy of what is on this phone, as your own household. The others keep the shared data.", confirmLabel: "Leave", danger: true }))) return;
+          try { await api.leave(); doneAndReload("You left the household."); } catch (e) { fail(e); }
+        } }));
+      } else {
+        kids.push(h("p", { class: "hint", text: "To leave, first remove the others or make someone else the owner." }));
+      }
+      wrap.replaceChildren(...kids);
+    }
+    paint();
+    return wrap;
+  }
+
+  function yourDataPanel() {
+    const api = hhApi();
+    const auth = authOf();
+    const status = h("p", { class: "hint", role: "status" });
+    const dl = h("button", { type: "button", class: "btn", id: "s-dl-all", text: "Download all my data", onclick: async () => {
+      dl.disabled = true; status.textContent = "Collecting your data and photos…";
+      try {
+        const text = await exportEverything(state, (id) => store.getPhoto(id), exportJSON);
+        const ok = await saveFile(`man-of-the-house-everything-${today}.json`, text, "application/json");
+        status.textContent = ok ? "Downloaded." : "Downloads are unavailable here. Use Export backup in Backup below.";
+      } catch (e) { status.textContent = errMsg(e, "Couldn't collect your data."); }
+      finally { dl.disabled = false; }
+    } });
+    const del = h("button", { type: "button", class: "btn danger", id: "s-delete-account", text: "Delete my account", onclick: async () => {
+      if (!(await confirmDialog({ title: "Delete your account?", message: "This permanently deletes your sign-in and, if nobody else shares your household, all of its tasks, history and photos. It cannot be undone. Download your data first if you want a copy.", confirmLabel: "Continue", danger: true }))) return;
+      if (!(await confirmDialog({ title: "Really delete everything?", message: "Last chance. Tap Delete forever to erase your account now.", confirmLabel: "Delete forever", danger: true }))) return;
+      del.disabled = true; status.textContent = "Deleting…";
+      try {
+        try { const push = doc.defaultView.motPush; if (push && push.hour() != null) await push.disable(); } catch { /* the server clears it anyway */ }
+        await api.deleteAccount();
+        try { await auth.signOut(); } catch { /* the account is already gone */ }
+        clearLocalCache(doc.defaultView.localStorage, "motH.v1", { everything: true });
+        status.textContent = "Your account was deleted.";
+        setTimeout(reloadApp, 800);
+      } catch (e) { del.disabled = false; status.textContent = errMsg(e, "Couldn't delete the account. Nothing more was changed; try again."); }
+    } });
+    return h("div", { class: "your-data" }, h("h4", { text: "Your data" }),
+      h("p", { class: "hint", text: "Get a copy of everything, including photos, or delete your account and its data for good." }),
+      h("div", { class: "row-panel-actions wrap-actions" }, dl, del), status);
   }
 
   function startRerun() {

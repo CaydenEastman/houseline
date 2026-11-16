@@ -28,13 +28,15 @@ The app itself works. What follows is the infrastructure around it: where data l
 - [x] First sign-in merges what is already on the phone into the account instead of discarding it; a different account on the same phone never inherits the previous account's data.
 - [x] Google sign-in turned on and tested (steps in `supabase/SETUP.md`). Apple sign-in needs the $99/yr developer account and is only required if you ship an iPhone store app with Google sign-in.
 - [ ] Own email sender (SMTP) once more than a few people use it.
-- [ ] Delete account and "download all my data" buttons (export backup already exists).
+- [x] "Download all my data" (backup plus every photo) and "Delete my account" (two confirmations; removes photo files, household if alone, push subscriptions, and the sign-in) in You, Settings, Account.
 
 ## 3. Household sharing
 
-- [ ] Households table: one household, several members, one shared data document.
-- [ ] Invite by link or email; roles (owner, member). The task "assign to" field already exists.
-- [ ] Row-level security so a user can only read and write their own household.
+- [x] Households table: one household, several members, one shared data document (up to 6 people).
+- [x] Invite with a one-time 7-day code; roles owner and member; owner can remove people and hand over ownership; members can leave. Reminders go to every member's phone.
+- [ ] Invite by link or email instead of a code (nicer, needs the email sender below).
+- [ ] Clean up photo files left behind when someone joins another household (their old solo household is deleted, its photo files are not yet).
+- [x] Row-level security so a user can only read and write their own household (tested with three throwaway users).
 
 ## 4. Reminders that arrive when the app is closed
 

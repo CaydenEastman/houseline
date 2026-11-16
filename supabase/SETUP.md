@@ -27,3 +27,16 @@ What gets created: tables `households`, `household_members`, `docs`, `locks`; a 
 - Tables `push_subscriptions` (one row per phone, owner-only) and `push_config` (server-only: signing keys and a cron secret) are in the migration `push_reminders`.
 - Edge Function `send-reminders` (no JWT; it checks the `x-cron-secret` header) runs hourly via pg_cron job `send-reminders-hourly`. The signing keys are created on first call and never leave the database; the public key is in `config.js` as `VAPID_PUBLIC_KEY`.
 - To test without waiting for morning: turn reminders on in the app, then in the Supabase SQL editor run the `net.http_post` call to `/functions/v1/send-reminders?force=1` with the `x-cron-secret` header from `push_config`. Add `&dry=1` to preview without sending.
+
+## Sharing a household
+
+Owner: You, Settings, Account, Household, **Invite someone**, then send the 8-character code (one use, 7 days). Partner: sign in, then **Join with a code**. Joining replaces the joiner's own tasks with the household's, so they should download their data first if they want to keep it. Up to 6 people per household. Morning reminders go to every member who turned them on.
+
+## Your own email sender (SMTP)
+
+Supabase's built-in sender is for testing: it is limited to a few emails an hour and may land in spam. For real use:
+1. Pick a sender. **Resend** is the simplest (free tier 3,000 emails/month). You need a domain you own so emails come from e.g. `hello@yourdomain.com`; without a domain, stay on the built-in sender.
+2. In the sender, add your domain and the DNS records it shows, then create an API key (SMTP password).
+3. In Supabase: **Authentication, Emails (or Project Settings, Authentication), SMTP Settings**, turn on **Custom SMTP**, and enter the sender address, name ("Man of the House"), host (`smtp.resend.com`), port `465`, username `resend`, and the API key as the password.
+4. Authentication, Rate Limits: raise "emails per hour" to something sensible (e.g. 30).
+5. Send yourself a sign-in link to test.
