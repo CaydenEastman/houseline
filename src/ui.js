@@ -9,6 +9,7 @@ import { validateState, exportJSON, importJSON } from "./storage.js";
 import { readiness } from "./readiness.js";
 import { ageTasks, HOME_AGE_LABEL } from "./templates.js";
 import { importTasksCSV } from "./importcsv.js";
+import { estimateFor, rangeText } from "./costs.js";
 import { downscaleImage, newPhotoId } from "./photos.js";
 import { renderWizard, resetWizard } from "./wizard.js";
 import * as historyView from "./views/history.js";
@@ -99,7 +100,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
   // ---------- toasts / live region ----------
   function toast(message, { error = false, undoBtn = false, ms } = {}) {
-    const item = h("div", { class: "toast" + (error ? " error" : "") }, h("span", { text: message }));
+    const item = h("div", { class: "toast" + (error ? " error" : ""), role: error ? "alert" : null }, h("span", { text: message }));
     let timer = null;
     const remove = () => { clearTimeout(timer); if (item.parentNode) item.remove(); if (undoToast === item) undoToast = null; };
     if (undoBtn) {
@@ -146,10 +147,10 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   function commit(next, message, { undoable = true } = {}) {
-    try { validateState(next); } catch (e) { toast("Could not save that change: " + errMsg(e), { error: true }); return false; }
+    try { validateState(next); } catch (e) { toast("Couldn't save that change: " + errMsg(e), { error: true }); return false; }
     const prev = state;
     state = next;
-    try { const p = store.save(state); if (p && p.catch) p.catch(() => {}); } catch (e) { toast("Could not save: " + errMsg(e), { error: true }); }
+    try { const p = store.save(state); if (p && p.catch) p.catch(() => {}); } catch (e) { toast("Couldn't save: " + errMsg(e), { error: true }); }
     if (message) recordChange(message, prev);
     if (undoable) undo = { state: prev };
     else { undo = null; if (undoToast) undoToast._remove(); }
@@ -338,14 +339,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const navBtn = (t, current) => h("li", {}, h("button", {
       type: "button", class: "nav-btn", id: `nav-${t.id}`,
       "aria-current": current ? "page" : null,
-      onclick: () => setView(t.id, false),
+      onclick: () => { setView(t.id, false); const b = doc.getElementById(`nav-${t.id}`); if (b && !b.closest("[hidden]")) b.focus(); else { const m = doc.getElementById("nav-more"); if (m) m.focus(); } },
     }, h("span", { class: "nav-icon", "aria-hidden": "true", text: t.icon }), h("span", { class: "nav-label", text: t.label })));
     const activeSecondary = secondary.find((t) => t.id === active);
     const moreBtn = h("li", {}, h("button", {
       type: "button", class: "nav-btn" + (inMore ? " nav-has-current" : ""), id: "nav-more",
       "aria-expanded": String(moreOpen), "aria-controls": "nav-more-list",
       "aria-current": inMore && !moreOpen ? "page" : null,
-      onclick: () => { moreOpen = !moreOpen; renderNav(); },
+      onclick: () => { moreOpen = !moreOpen; renderNav(); const m = doc.getElementById("nav-more"); if (m) m.focus(); },
     }, h("span", { class: "nav-icon", "aria-hidden": "true", text: "⋯" }),
     h("span", { class: "nav-label", text: activeSecondary ? `More: ${activeSecondary.label}` : "More" })));
     els.nav.replaceChildren(
@@ -353,6 +354,10 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       h("ul", { class: "nav-list nav-more-list", id: "nav-more-list", hidden: moreOpen ? null : true, "aria-label": "More sections" },
         secondary.map((t) => navBtn(t, moreOpen && active === t.id))));
   }
+
+  els.nav.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && moreOpen) { moreOpen = false; renderNav(); const m = doc.getElementById("nav-more"); if (m) m.focus(); }
+  });
 
   function setView(id, focusPanel) {
     if (!TABS.some((t) => t.id === id)) return;
@@ -565,7 +570,9 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const added = [];
     let saved = false;
     const vehicle = task.kind === "mileage" ? state.vehicles.find((v) => v.id === task.vehicleId) : null;
-    const cost = h("input", { id: "c-cost", type: "number", inputmode: "decimal", min: "0", step: "0.01", placeholder: "Optional" });
+    const est = safe(() => estimateFor(task, state), null);
+    const estText = est ? rangeText(est) : "";
+    const cost = h("input", { id: "c-cost", type: "number", inputmode: "decimal", min: "0", step: "0.01", placeholder: estText ? `${est.source === "yours" ? "You paid" : "Typical"}: ${estText}` : "Optional" });
     const odo = vehicle ? h("input", { id: "c-odo", type: "number", inputmode: "numeric", min: "0", step: "1", value: String(vehicle.odometer) }) : null;
     const notes = h("textarea", { id: "c-notes", rows: "2", maxlength: "2000", placeholder: "Optional" });
     const err = h("p", { class: "form-error", role: "alert" });
@@ -590,7 +597,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       fileIn.value = "";
       err.textContent = "";
       for (const f of files) {
-        try { added.push(await photos.add(f)); } catch (e) { err.textContent = errMsg(e, "Could not add that photo."); }
+        try { added.push(await photos.add(f)); } catch (e) { err.textContent = errMsg(e, "Couldn't add that photo."); }
       }
       drawPhotos();
     });
@@ -750,7 +757,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       let next;
       try {
         next = editing ? updateTask(state, task.id, out) : addTask(state, { ...out, custom: true }, newId);
-      } catch (ex) { return fail(errMsg(ex, "Could not save task."), f.title); }
+      } catch (ex) { return fail(errMsg(ex, "Couldn't save task."), f.title); }
       closeDialog(els.task);
       commit(next, `${editing ? "Saved" : "Added"}: ${title}`);
     };
@@ -816,7 +823,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     { icon: "\u{1F4C5}", title: "See it on the calendar", lines: [
       "The Calendar tab shows which days tasks, expiring supplies and warranties land on. Tap a day for details.",
       "Need more time? Move a task to a later day from that day's list.",
-      "Everyone signed in to this household sees the same tasks, so split the work with the Assign setting on a task."] },
+      "Everyone in your household sees the same tasks. Use Assign on a task to split the work."] },
   ];
   function openTour(trigger) {
     let i = 0;
@@ -829,7 +836,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         h("h2", { id: "confirm-dialog-title" }, h("span", { "aria-hidden": "true", text: `${t.icon} ` }), t.title),
         h("ul", { class: "tour-list" }, t.lines.map((l) => h("li", { text: l }))),
         h("div", { class: "dialog-actions" },
-          h("button", { type: "button", class: "btn", id: "tour-skip", text: last ? "Close" : "Skip tour", onclick: finish }),
+          last ? null : h("button", { type: "button", class: "btn", id: "tour-skip", text: "Skip tour", onclick: finish }),
           i > 0 ? h("button", { type: "button", class: "btn", id: "tour-back", text: "Back", onclick: () => { i--; draw(); } }) : null,
           last ? h("button", { type: "button", class: "btn primary solid", id: "tour-next", text: "Got it", onclick: finish })
             : h("button", { type: "button", class: "btn primary solid", id: "tour-next", text: "Next", onclick: () => { i++; draw(); } })),
@@ -861,7 +868,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       fileIn.value = "";
       if (!file) return;
       let text;
-      try { text = await file.text(); } catch { toast("Could not read that file.", { error: true }); return; }
+      try { text = await file.text(); } catch { toast("Couldn't read that file.", { error: true }); return; }
       doImport(text, `“${file.name}”`);
     });
 
@@ -892,12 +899,12 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const skipText = r.skipped.slice(0, 6).map((x) => `row ${x.row}: ${x.reason}`).join("; ") + (r.skipped.length > 6 ? `; and ${r.skipped.length - 6} more` : "");
       if (!r.added) { csvOut.replaceChildren(h("p", { class: "form-error", role: "alert", text: `Nothing was imported. ${skipText}` })); return; }
       closeDialog(els.settings);
-      commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length}` : ""}.`);
+      commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length}` : ""}${r.warnings && r.warnings.length ? `. Note: ${r.warnings.join("; ")}` : ""}.`);
     }
     csvFile.addEventListener("change", async () => {
       const f = csvFile.files && csvFile.files[0]; csvFile.value = "";
       if (!f) return;
-      try { doCSV(await f.text()); } catch { toast("Could not read that file.", { error: true }); }
+      try { doCSV(await f.text()); } catch { toast("Couldn't read that file.", { error: true }); }
     });
     function changeLog() {
       const log = lsGet(LOG_KEY), snaps = lsGet(SNAP_KEY);
@@ -909,7 +916,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           snap ? h("button", { type: "button", class: "btn v-small", text: "Restore", "aria-label": `Restore to just before: ${e.msg}`, onclick: async () => {
             let restored;
             try { restored = JSON.parse(snap.json); validateState(restored); } catch { toast("That restore point is damaged.", { error: true }); return; }
-            const ok = await confirmDialog({ title: "Restore this point?", message: `Your data goes back to just before “${e.msg}”. Later changes are replaced, and you can undo right after.`, confirmLabel: "Restore", danger: true });
+            const ok = await confirmDialog({ title: "Restore this point?", message: `Your data goes back to just before “${e.msg}”. Later changes are replaced, and you can undo right after. If you share this household, the restore reaches the other phone too and can replace their newer edits.`, confirmLabel: "Restore", danger: true });
             if (!ok) return;
             closeDialog(els.settings);
             commit(restored, "Restored an earlier version.");
@@ -934,7 +941,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         h("div", { class: "field" }, h("label", { for: "s-text", text: "Text size" }),
           h("select", { id: "s-text", onchange: (e) => setLook({ text: e.target.value }) },
             [["normal", "Normal"], ["large", "Large"], ["xl", "Extra large"]].map(([v, t]) => h("option", { value: v, text: t, selected: look.text === v })))),
-        h("p", { class: "hint", text: "These two are remembered on this device only." }),
+        h("p", { class: "hint", text: "Theme and text size are saved on this device only." }),
         h("div", { class: "field" }, h("label", { for: "s-climate", text: "Climate (for seasonal reminders)" }),
           h("select", { id: "s-climate", onchange: (e) => { const next = guard(() => updateProfile(state, { climate: e.target.value })); if (next) commit(next, "Climate saved.", { undoable: false }); } },
             [["cold", "Cold winters"], ["mild", "Mild year-round"], ["hot", "Hot summers"]].map(([v, t]) => h("option", { value: v, text: t, selected: ((state.profile && state.profile.climate) || "cold") === v }))))),
@@ -1011,7 +1018,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     els.headerActions.hidden = needsWizard;
     if (needsWizard) {
       els.app.hidden = true; els.wizard.hidden = false;
-      renderWizard(els.wizard, ctx, { rerun: rerunning, onClose: () => { rerunning = false; render(); const t = els.main; t.setAttribute("tabindex", "-1"); t.focus(); } });
+      renderWizard(els.wizard, ctx, { rerun: rerunning, onClose: () => {
+        const firstRun = !rerunning;
+        rerunning = false; render(); const t = els.main; t.setAttribute("tabindex", "-1"); t.focus();
+        if (firstRun && !tourSeen() && state.profile && state.profile.setupDone) openTour(null); // new users get the tour right after setup
+      } });
     } else {
       els.wizard.hidden = true; els.app.hidden = false;
       renderStrip(); renderNav();
@@ -1056,7 +1067,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       if (!st) return;
       sync = { kind: st.kind || "saved", message: st.message || "" };
       if (els.app.hidden === false) renderStrip();
-      if (st.kind === "error") toast(st.message || "Could not save your changes.", { error: true });
+      if (st.kind === "error") toast(st.message || "Couldn't save your changes.", { error: true });
     });
   } catch { /* optional */ }
   try {
@@ -1070,7 +1081,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
   render();
   if (!tourSeen() && state.profile && state.profile.setupDone && !loadError) openTour(null);
-  if (loadError) toast("Could not load your saved data, so a fresh start was opened. " + errMsg(loadError), { error: true, ms: 12000 });
+  if (loadError) toast("Couldn't load your saved data, so a fresh start was opened. " + errMsg(loadError), { error: true, ms: 12000 });
   else if (store.warning) toast(String(store.warning), { error: true, ms: 10000 });
   else if (!persistent && store.mode === "local") toast("Storage is unavailable; changes will not be kept after you close this page.", { error: true, ms: 10000 });
 

@@ -2,7 +2,7 @@
 // Plain about what the export can't do (no live feed, no email/push).
 import * as ICS from "../ics.js";
 import * as CAL from "../calendar.js";
-import { addDays, snoozeTask } from "../logic.js";
+import { addDays, snoozeTask, dueInfo } from "../logic.js";
 import { isoToLocalDate } from "../dom.js";
 
 export const id = "calendar";
@@ -298,7 +298,9 @@ function buildGrid(ctx, rerender) {
       try { ctx.commit(snoozeTask(ctx.getState(), task.id, iso, today), `Moved to ${iso}: ${task.title}`); }
       catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that."); }
     };
-    const dateIn = movable ? h("input", { type: "date", id: `v-mv-${e.id}`, min: addDays(today, 1), max: addDays(today, 365) }) : null;
+    let minMove = addDays(today, 1);
+    try { const d = movable ? dueInfo(task, state, today).dueDate : null; if (d && d >= today) minMove = addDays(d, 1); } catch { /* keep tomorrow */ }
+    const dateIn = movable ? h("input", { type: "date", id: `v-mv-${e.id}`, min: minMove, max: addDays(today, 365) }) : null;
     return h("li", { class: `v-evt v-st-${e.status || "none"}`, draggable: movable ? "true" : null,
       ondragstart: movable ? (ev) => { try { ev.dataTransfer.setData("text/plain", task.id); ev.dataTransfer.effectAllowed = "move"; } catch { /* no dnd */ } } : null },
       h("span", { class: `v-chip v-st-${e.status || "none"} v-cat-${e.category || "none"}`, "aria-hidden": "true", text: symbolOf(e) }),

@@ -2,6 +2,7 @@
 import { agenda, homeScore, seasonNudges, mileageFlags, CAT_LABEL } from "../insights.js";
 import { parseQuick } from "../quickadd.js";
 import { addTask } from "../logic.js";
+import { estimateFor, rangeText } from "../costs.js";
 import { makePaint, plural, dueWords } from "./shared.js";
 
 export const id = "today";
@@ -45,6 +46,11 @@ function build(ctx, rerender) {
   const submitQuick = () => {
     const p = parseQuick(S.q, today);
     if (p.error) { S.err = p.error; S.preview = null; S.pending = "v-quick-input"; rerender(); return; }
+    const dupKey = String(p.task.title).toLowerCase();
+    if ((state.tasks || []).some((t) => String(t.title).toLowerCase() === dupKey) && S.dupFor !== dupKey) {
+      S.dupFor = dupKey; S.err = `You already have “${p.task.title}”. Press Add again to add it anyway.`; S.preview = null; S.pending = "v-quick-input"; rerender(); return;
+    }
+    S.dupFor = null;
     try {
       const next = addTask(state, p.task, typeof ctx.newId === "function" ? ctx.newId : () => "q-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
       S.q = ""; S.err = ""; S.preview = null; S.pending = "v-quick-input";
@@ -57,7 +63,7 @@ function build(ctx, rerender) {
       h("label", { class: "sr-only", for: "v-quick-input", text: "Describe a task and how often" }),
       h("input", { id: "v-quick-input", "data-fk": "v-quick-input", type: "text", value: S.q, maxlength: "160", autocomplete: "off",
         placeholder: "e.g. clean gutters every 6 months",
-        oninput: (e) => { S.q = e.target.value; S.err = ""; } }),
+        oninput: (e) => { S.q = e.target.value; S.err = ""; S.dupFor = null; } }),
       h("button", { type: "submit", class: "btn primary solid", text: "Add" })),
     S.err ? h("p", { class: "form-error", role: "alert", text: S.err }) : h("p", { class: "v-hint", text: "Try \"mow the lawn weekly\", \"renew registration every January 15\" or \"rotate tires twice a year\"." }));
 
@@ -68,13 +74,14 @@ function build(ctx, rerender) {
       onclick: () => { const ids = [...S.sel]; S.sel.clear(); S.pending = "v-quick-input"; if (!ctx.markManyDone(ids)) rerender(); } }),
     h("span", { class: "v-hint", role: "status", text: nSel ? `${plural(nSel, "task")} selected` : "Tick tasks, then mark them done in one go." })) : null;
 
+  const costBit = (t) => { const e = estimateFor(t, state); const x = rangeText(e); return x ? ` · ${e.source === "yours" ? "you paid" : "typical"} ${x}` : ""; };
   const taskRow = (r) => h("li", { class: `v-evt v-st-${r.status}${typeof ctx.markManyDone === "function" ? " v-evt-sel" : ""}` },
     typeof ctx.markManyDone === "function" ? h("input", { type: "checkbox", class: "v-sel-box", id: `v-sel-${r.task.id}`, "data-fk": `v-sel-${r.task.id}`, checked: S.sel.has(r.task.id) ? true : null,
       "aria-label": `Select ${r.task.title}`, onchange: (e) => { if (e.target.checked) S.sel.add(r.task.id); else S.sel.delete(r.task.id); S.pending = `v-sel-${r.task.id}`; rerender(); } }) : null,
     h("span", { class: `v-chip v-st-${r.status}`, "aria-hidden": "true", text: r.bucket === "overdue" ? "!" : r.status === "due-soon" ? "◐" : "○" }),
     h("div", { class: "v-evt-main" },
       h("p", { class: "v-evt-title", text: r.task.title }),
-      h("p", { class: "v-meta", text: `${CAT_LABEL[r.task.category] || r.task.category} · ${dueWords(r)}` })),
+      h("p", { class: "v-meta", text: `${CAT_LABEL[r.task.category] || r.task.category} · ${dueWords(r)}${costBit(r.task)}` })),
     h("div", { class: "v-actions v-evt-actions" },
       typeof ctx.completeTask === "function"
         ? h("button", { type: "button", class: "btn v-small", text: "Done", "aria-label": `Done: ${r.task.title}`, "data-fk": `v-done-${r.task.id}`, onclick: () => ctx.completeTask(r.task.id) }) : null,

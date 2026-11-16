@@ -52,7 +52,7 @@ export function homeScore(state, today) {
   if (infoPct < 100) fixes.push({ weight: 20 * (100 - infoPct) / 100, text: "Finish the emergency info sheet (contacts, meeting place, shut-offs)", tab: "emergency" });
   if (s.dueSoon > 0) fixes.push({ weight: 17 * s.dueSoon / Math.max(1, live), text: `${s.dueSoon} ${s.dueSoon === 1 ? "task is" : "tasks are"} due soon`, tab: "tasks" });
   const w = warrantyAlerts(state, today, 60).filter((x) => x.daysLeft >= 0);
-  if (w.length) fixes.push({ weight: 4, text: `${w[0].item.name} warranty ends in ${w[0].daysLeft} ${w[0].daysLeft === 1 ? "day" : "days"}, so check it over now`, tab: "inventory" });
+  if (w.length) fixes.push({ weight: 4, text: `${w[0].item.name} warranty expires in ${w[0].daysLeft} ${w[0].daysLeft === 1 ? "day" : "days"}, so check it over now`, tab: "inventory" });
   fixes.sort((a, b) => b.weight - a.weight);
 
   const band = score >= 85 ? "great" : score >= 65 ? "ok" : "needs-work";
@@ -185,11 +185,11 @@ export function digestText(state, today, nameOf = (id) => id) {
   if (r.expired.length || r.expiring.length) {
     lines.push("SUPPLIES");
     for (const s of r.expired) lines.push(`- ${s.name}: expired ${s.expires}`);
-    for (const e of r.expiring) lines.push(`- ${e.supply.name}: expires in ${e.daysLeft} days`);
+    for (const e of r.expiring) lines.push(`- ${e.supply.name}: expires in ${e.daysLeft} ${e.daysLeft === 1 ? "day" : "days"}`);
     lines.push("");
   }
   const w = warrantyAlerts(state, today, 30).filter((x) => x.daysLeft >= 0);
-  if (w.length) lines.push("WARRANTIES", ...w.map((x) => `- ${x.item.name}: ends in ${x.daysLeft} days`), "");
+  if (w.length) lines.push("WARRANTIES", ...w.map((x) => `- ${x.item.name}: warranty expires in ${x.daysLeft} ${x.daysLeft === 1 ? "day" : "days"}`), "");
   const n = seasonNudges(state, today, 2);
   if (n.length) lines.push("THIS MONTH", ...n.map((x) => `- ${x.text}`), "");
   const hs = homeScore(state, today);

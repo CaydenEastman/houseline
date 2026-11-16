@@ -2,6 +2,8 @@
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 const SHORT = MONTHS.map((m) => m.slice(0, 3));
 const UNIT_DAYS = { day: 1, week: 7, month: 30, quarter: 91, year: 365 };
+const UNIT_ALIAS = { day: "day", week: "week", wk: "week", month: "month", mo: "month", mos: "month", quarter: "quarter", year: "year", yr: "year" };
+const SEASONS = { spring: [3, 20], summer: [6, 21], fall: [9, 22], autumn: [9, 22], winter: [12, 21] };
 const NUM_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12 };
 
 const CAT_WORDS = {
@@ -31,13 +33,13 @@ export function parseQuick(text, today) {
 
   // "every 3 months", "every other week", "every year"
   if (interval == null) {
-    m = /\bevery\s+(other\s+|(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+)?(day|week|month|quarter|year)s?\b/i.exec(s);
+    m = /\bevery\s+(other\s+|(\d{1,5}(?:,\d{3})?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+)?(days?|weeks?|wks?|months?|mos?|quarters?|years?|yrs?)\b/i.exec(s);
     if (m) {
-      const unit = UNIT_DAYS[m[3].toLowerCase()];
+      const unitName = UNIT_ALIAS[m[3].toLowerCase().replace(/s$/, "")] || UNIT_ALIAS[m[3].toLowerCase()];
+      const unit = UNIT_DAYS[unitName];
       let n = 1;
-      if (m[1]) n = /other/i.test(m[1]) ? 2 : (NUM_WORDS[m[2].toLowerCase()] ?? Number(m[2]));
+      if (m[1]) n = /other/i.test(m[1]) ? 2 : (NUM_WORDS[m[2].toLowerCase()] ?? Number(m[2].replace(/,/g, "")));
       interval = n * unit;
-      if (m[3].toLowerCase() === "year") interval = n * 365;
       s = s.replace(m[0], " ");
     }
   }
@@ -55,12 +57,26 @@ export function parseQuick(text, today) {
     m = new RegExp(`\\b(?:every|each|in|on)\\s+(${names})\\.?(?:\\s+(\\d{1,2})(?:st|nd|rd|th)?)?\\b`, "i").exec(s);
     if (m) {
       const idx = MONTHS.findIndex((x) => x === m[1].toLowerCase() || x.slice(0, 3) === m[1].toLowerCase().slice(0, 3));
-      const day = Math.min(28, Math.max(1, m[2] ? Number(m[2]) : 1));
-      annual = { month: idx + 1, day };
+      const wanted = m[2] ? Number(m[2]) : 1;
+      const day = Math.min(28, Math.max(1, wanted));
+      annual = { month: idx + 1, day, clamped: wanted > 28 };
       s = s.replace(m[0], " ");
     }
   }
-  if (interval == null && !annual) return { error: "Say how often, like \"every 3 months\", \"weekly\" or \"every October\"." };
+  if (interval == null && !annual) {
+    m = /\b(?:every|each|in)\s+(spring|summer|fall|autumn|winter)\b/i.exec(s);
+    if (m) { const [mo, d] = SEASONS[m[1].toLowerCase()]; annual = { month: mo, day: d }; s = s.replace(m[0], " "); }
+  }
+  if (interval == null && !annual) {
+    if (/\b(miles?|mi|km)\b/i.test(s)) return { error: "Quick add works with time, like \"every 6 months\". For \"every 5,000 miles\", add the task from the Vehicles tab so it can follow your odometer." };
+    return { error: "Say how often, like \"every 3 months\", \"weekly\" or \"every October\"." };
+  }
+  const notes = [];
+  if (annual && annual.clamped) notes.push("the day was set to the 28th, the latest a yearly task can use");
+  if (interval != null) {
+    const dm = /\b(?:on\s+)?the\s+\d{1,2}(?:st|nd|rd|th)\b/i.exec(s);
+    if (dm) { s = s.replace(dm[0], " "); notes.push("it repeats from today, so a fixed day of the month isn't kept"); }
+  }
   if (interval != null && (interval < 1 || interval > 36500)) return { error: "That interval is out of range." };
 
   rest = clean(s);
@@ -73,7 +89,7 @@ export function parseQuick(text, today) {
     ? { title, category, kind: "annual", month: annual.month, day: annual.day, custom: true }
     : { title, category, kind: "interval", intervalDays: interval, startDate: today, custom: true };
   const every = annual ? `every ${cap(MONTHS[annual.month - 1])} ${annual.day}` : describeInterval(interval);
-  return { task, summary: `${title}: ${every} (${category})` };
+  return { task, summary: `${title}: ${every} (${category})${notes.length ? ` — ${notes.join("; ")}` : ""}` };
 }
 
 export function describeInterval(n) {
@@ -82,6 +98,7 @@ export function describeInterval(n) {
   if (n === 7) return "every week";
   if (n % 7 === 0 && n < 60) return `every ${n / 7} weeks`;
   if (n === 30) return "every month";
+  if (n === 61) return "every other month";
   if (n === 91) return "every 3 months";
   if (n === 182) return "twice a year";
   if (n % 30 === 0 && n < 360) return `every ${n / 30} months`;

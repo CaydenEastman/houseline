@@ -63,16 +63,16 @@ export function renderWizard(container, ctx, opts = {}) {
   const { h } = ctx;
   const steps = ["Your home", "Vehicles", "Review"];
 
-  const go = (n) => { W.step = n; W.error = ""; draw(true); };
+  const go = (n) => { W.step = n; W.error = ""; W.draft = null; draw(true); };
   const fail = (msg, field) => { W.error = msg; draw(false); if (field) { const el = container.querySelector(field); if (el) el.focus(); } };
 
   function finish(skip) {
     let res;
-    try { res = buildResult(ctx, { skip }); } catch (e) { fail(e.message || "Could not finish setup."); return; }
+    try { res = buildResult(ctx, { skip }); } catch (e) { fail(e.message || "Couldn't finish setup."); return; }
     const n = res.added.length;
     const msg = skip ? `Loaded ${n} starter tasks.` : `All set. ${n} ${n === 1 ? "task" : "tasks"} added.`;
     const ok = ctx.commit(res.state, msg, { undoable: false });
-    if (ok === false) { W.error = "Could not save your setup. Please try again."; draw(false); return; }
+    if (ok === false) { W.error = "Couldn't save your setup. Please try again."; draw(false); return; }
     W = null;
     if (opts.onClose) opts.onClose();
   }
@@ -94,7 +94,8 @@ export function renderWizard(container, ctx, opts = {}) {
     if (!nameEl) return true;
     const name = nameEl.value.trim();
     const odoRaw = odoEl.value.trim();
-    if (!name && !odoRaw) return !required;
+    W.draft = { name: nameEl.value, odo: odoEl.value }; // kept so a validation error never empties the boxes
+    if (!name && !odoRaw) { W.draft = null; return !required; }
     if (!name) { fail("Give the vehicle a name, like “Family minivan”.", "#w-vname"); return false; }
     const odometer = odoRaw === "" ? 0 : Number(odoRaw);
     if (!Number.isInteger(odometer) || odometer < 0 || odometer > 5000000) {
@@ -104,6 +105,7 @@ export function renderWizard(container, ctx, opts = {}) {
     const dup = [...ctx.getState().vehicles, ...W.newVehicles].some((v) => v.name.toLowerCase() === name.toLowerCase());
     if (dup) { fail("You already have a vehicle with that name.", "#w-vname"); return false; }
     W.newVehicles.push({ name, odometer });
+    W.draft = null;
     W.error = "";
     return true;
   }
@@ -147,16 +149,16 @@ export function renderWizard(container, ctx, opts = {}) {
         h("div", { class: "row2" },
           h("div", { class: "field" },
             h("label", { for: "w-vname", text: "Vehicle name" }),
-            h("input", { id: "w-vname", type: "text", maxlength: "80", autocomplete: "off", placeholder: "e.g. Family minivan" })),
+            h("input", { id: "w-vname", type: "text", maxlength: "80", autocomplete: "off", placeholder: "e.g. Family minivan", value: W.draft ? W.draft.name : "" })),
           h("div", { class: "field" },
             h("label", { for: "w-vodo", text: "Current odometer (miles)" }),
-            h("input", { id: "w-vodo", type: "number", inputmode: "numeric", min: "0", step: "1", placeholder: "e.g. 84500" }))),
+            h("input", { id: "w-vodo", type: "number", inputmode: "numeric", min: "0", step: "1", placeholder: "e.g. 84500", value: W.draft ? W.draft.odo : "" }))),
         h("button", { type: "submit", class: "btn", text: "+ Add this vehicle" })));
   }
 
   function stepReview() {
     let res = null, err = "";
-    try { res = buildResult(ctx); } catch (e) { err = e.message || "Could not prepare your tasks."; }
+    try { res = buildResult(ctx); } catch (e) { err = e.message || "Couldn't prepare your tasks."; }
     if (!res) return h("p", { class: "form-error", role: "alert", text: err });
     const counts = {};
     for (const t of res.added) counts[t.category] = (counts[t.category] || 0) + 1;

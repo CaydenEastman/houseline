@@ -2,7 +2,7 @@
 import { CATEGORIES } from "./templates.js";
 import {
   isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES, CLIMATE_TYPES, HOME_AGE_TYPES,
-  MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG,
+  MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG, MAX_COST,
 } from "./logic.js";
 
 export const STORAGE_KEY = "motH.v1"; // key kept from v1 so existing data migrates in place
@@ -151,7 +151,7 @@ export function validateState(s) {
     need(CATEGORIES.includes(c.category), `${p}.category is invalid: ${c.category}`);
     need(isISO(c.date), `${p}.date must be YYYY-MM-DD`);
     need(c.kind === "done" || c.kind === "skipped", `${p}.kind must be "done" or "skipped"`);
-    need(c.cost === null || (typeof c.cost === "number" && Number.isFinite(c.cost) && c.cost >= 0), `${p}.cost must be a number >= 0 or null`);
+    need(c.cost === null || (typeof c.cost === "number" && Number.isFinite(c.cost) && c.cost >= 0 && c.cost <= MAX_COST), `${p}.cost must be a number from 0 to ${MAX_COST} or null`);
     need(typeof c.notes === "string", `${p}.notes must be a string`);
     need(c.odometer === null || isInt(c.odometer, 0, MAX_ODOMETER), `${p}.odometer must be a whole number >= 0 or null`);
     need(c.by === null || typeof c.by === "string", `${p}.by must be a string or null`);

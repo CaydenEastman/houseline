@@ -121,6 +121,7 @@ function contentMap(main, hist) {
 
 
 const ID_ARRAYS = ["tasks", "vehicles", "items", "supplies", "completions", "vendors"];
+const FIELDWISE = ["tasks", "items", "vendors", "vehicles", "supplies"];
 const isPlain = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const same = (a, b) => canon(a) === canon(b);
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
@@ -132,7 +133,24 @@ function pick(b, m, t) {
   return m;
 }
 
-function mergeById(b, m, t) {
+/** Field-by-field merge of one record: each field takes the side that changed it (mine wins a true conflict). */
+function mergeFields(b, m, t) {
+  if (!isPlain(b) || !isPlain(m) || !isPlain(t)) return pick(b, m, t);
+  const out = {};
+  for (const k of new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(t)])) {
+    const v = pick(b[k], m[k], t[k]);
+    if (v !== undefined) out[k] = v;
+  }
+  // Both sides completed the same task: the later date (and its odometer) wins instead of "mine".
+  if (typeof m.lastDone === "string" && typeof t.lastDone === "string" && !same(m.lastDone, b.lastDone) && !same(t.lastDone, b.lastDone)) {
+    const src = t.lastDone > m.lastDone ? t : m;
+    out.lastDone = src.lastDone;
+    if ("lastDoneOdometer" in src) out.lastDoneOdometer = src.lastDoneOdometer;
+  }
+  return out;
+}
+
+function mergeById(b, m, t, fieldwise = false) {
   const idx = (arr) => { const map = new Map(); for (const x of Array.isArray(arr) ? arr : []) if (x && x.id != null) map.set(x.id, x); return map; };
   const B = idx(b), M = idx(m), T = idx(t);
   const out = [];
@@ -142,7 +160,7 @@ function mergeById(b, m, t) {
     const id = x.id;
     seen.add(id);
     const inM = M.has(id), inB = B.has(id);
-    if (inM) out.push(inB ? pick(B.get(id), M.get(id), x) : M.get(id)); // both added same id -> mine
+    if (inM) out.push(inB ? (fieldwise ? mergeFields(B.get(id), M.get(id), x) : pick(B.get(id), M.get(id), x)) : M.get(id)); // both added same id -> mine
     else if (!inB) out.push(x); // remote addition
     else if (!same(x, B.get(id))) out.push(x); // I deleted, they modified -> keep theirs
     // else: I deleted, they didn't touch -> deleted
@@ -181,13 +199,36 @@ export function mergeStates(base, mine, theirs) {
   const keys = new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(t)]);
   for (const k of keys) {
     let v;
-    if (ID_ARRAYS.includes(k)) v = mergeById(b[k], m[k], t[k]);
+    if (ID_ARRAYS.includes(k)) v = mergeById(b[k], m[k], t[k], FIELDWISE.includes(k));
     else if (isPlain(m[k]) && isPlain(t[k]) && (b[k] === undefined || isPlain(b[k]))) v = mergeObjects(b[k], m[k], t[k]);
     else v = pick(b[k], m[k], t[k]);
     if (v !== undefined) out[k] = v;
   }
   out.version = m.version ?? t.version ?? b.version;
-  return clone(out);
+  return repairRefs(clone(out), [b, m, t]);
+}
+
+/**
+ * After a merge, one side may reference something the other deleted (a new task on a deleted item, a new
+ * mileage task on a deleted vehicle). Keep the data: bring a deleted vehicle back, and unlink missing
+ * items/vehicles from tasks and vendors, so validation passes and nothing is silently thrown away.
+ */
+export function repairRefs(s, sources = []) {
+  const ids = (k) => new Set((s[k] || []).map((x) => x.id));
+  const vIds = ids("vehicles"), iIds = ids("items");
+  for (const t of s.tasks || []) {
+    if (t.kind === "mileage" && t.vehicleId && !vIds.has(t.vehicleId)) {
+      let back = null;
+      for (const src of sources) { back = (src.vehicles || []).find((v) => v && v.id === t.vehicleId) || back; }
+      if (back) { s.vehicles = [...(s.vehicles || []), clone(back)]; vIds.add(back.id); }
+    }
+    if (t.kind !== "mileage" && t.vehicleId && !vIds.has(t.vehicleId)) t.vehicleId = null;
+    if (t.itemId && !iIds.has(t.itemId)) t.itemId = null;
+  }
+  for (const v of s.vendors || []) {
+    if (Array.isArray(v.itemIds)) v.itemIds = v.itemIds.filter((x) => iIds.has(x));
+  }
+  return s;
 }
 
 export async function createStore({ localStorage, claude, now = () => Date.now(), loadTimeoutMs = 10_000, debounceMs = 600, coalesceMs = 50, lockRetryMs = 150 } = {}) {
@@ -262,7 +303,8 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
     try {
       const ref = db.doc("household/lock");
       if (!ref || typeof ref.acquire !== "function") return;
-      for (let i = 0; i < 5; i++) {
+      // Wait up to roughly 3 s for the other device to finish its write before going ahead without the lock.
+      for (let i = 0; i < 20; i++) {
         const r = await ref.acquire({ holder: clientId, ttlMs: 8000 });
         if (r && r.acquired) return;
         await new Promise((res) => setTimeout(res, lockRetryMs * (0.5 + Math.random())));
@@ -362,8 +404,8 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
                 try {
                   toWrite = storage.validateState(mergeStates(base || remote.state, state, remote.state));
                 } catch (e) {
-                  toWrite = state;
-                  emit("saving", `Could not merge with changes from another device (${errMsg(e)}); keeping this device's version.`);
+                  // Never overwrite the other device's data with ours: leave the cloud alone and retry on the next change.
+                  throw new Error(`could not combine with changes from another device (${errMsg(e)})`);
                 }
               }
               await writeShards(toWrite, JSON.stringify(toWrite));

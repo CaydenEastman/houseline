@@ -1,6 +1,8 @@
 // Insights view: who's doing what, spending trends, cost per item, home binder and weekly digest export.
 import { workload, spendTrend, costByItem, binderHTML, binderText, digestText, CAT_LABEL } from "../insights.js";
 import { previousMonth, currentMonth, monthlyRecap, recapText } from "../recap.js";
+import { yearlyBudget, rangeText } from "../costs.js";
+import { spend } from "../logic.js";
 import { makePaint, plural, money } from "./shared.js";
 
 export const id = "insights";
@@ -20,7 +22,8 @@ function build(ctx, rerender) {
   const nameOf = (pid) => (typeof ctx.personName === "function" ? ctx.personName(pid) : null) || "Someone";
 
   // ----- workload -----
-  const wl = workload(state, today, nameOf);
+  let wl = [];
+  try { wl = workload(state, today, nameOf); } catch { /* bad dates in old data must not blank the whole view */ }
   const wlCard = h("section", { class: "v-panel", "aria-labelledby": "v-wl-h" },
     h("h3", { id: "v-wl-h", class: "v-h3", text: "Who has what" }),
     wl.length === 0 ? h("p", { class: "v-hint", text: "Add tasks to see the workload." })
@@ -57,6 +60,23 @@ function build(ctx, rerender) {
       : h("ul", { class: "v-plain" }, ci.slice(0, 8).map((c) => h("li", {},
         h("strong", { text: c.item.name }), ` · ${money(c.total)} over ${plural(c.count, "job")}`,
         c.hint ? h("span", { class: "v-warn", text: ` ${c.hint}` }) : null))));
+
+  // ----- estimated yearly upkeep -----
+  const bud = yearlyBudget(state, today);
+  const thisYear = today.slice(0, 4);
+  const soFar = spend(state, thisYear).total;
+  const rng = (l, hi) => (Math.round(l) === Math.round(hi) ? `$${Math.round(l).toLocaleString("en-US")}` : `$${Math.round(l).toLocaleString("en-US")} to $${Math.round(hi).toLocaleString("en-US")}`);
+  const budCard = h("section", { class: "v-panel", "aria-labelledby": "v-bud-h" },
+    h("h3", { id: "v-bud-h", class: "v-h3", text: "Estimated yearly upkeep" }),
+    bud.items.length === 0 ? h("p", { class: "v-hint", text: "Add tasks to see a ballpark of what upkeep costs per year." }) : h("div", {},
+      h("p", {}, h("span", { class: "v-total-num", text: rng(bud.low, bud.high) }), h("span", { class: "v-total", text: " per year" })),
+      h("p", { class: "v-meta", text: `You've recorded ${money(soFar)} so far in ${thisYear}.` }),
+      h("ul", { class: "v-plain" }, Object.entries(bud.byCategory).filter(([, v]) => v.high > 0).map(([k, v]) => h("li", { text: `${CAT_LABEL[k] || k}: ${rng(v.low, v.high)}` }))),
+      h("h4", { class: "v-h5", text: "Biggest yearly costs" }),
+      h("ul", { class: "v-plain" }, bud.items.slice(0, 5).map((x) => h("li", {},
+        h("strong", { text: x.task.title.split(" — ")[0] }),
+        ` · ${rng(x.low, x.high)} a year (${rangeText(x.per)} each, ${x.per.source === "yours" ? "from your own costs" : "typical price"})`)))),
+    h("p", { class: "v-hint", text: `Ballpark only. Typical US prices: the low end is doing it yourself, the high end is hiring it out. Once you record real costs for a task, your own numbers replace the guess.${bud.uncounted ? ` ${plural(bud.uncounted, "task")} ${bud.uncounted === 1 ? "has" : "have"} no estimate and ${bud.uncounted === 1 ? "isn't" : "aren't"} counted.` : ""}` }));
 
   // ----- recap -----
   const prev = monthlyRecap(state, previousMonth(today), today);
@@ -97,7 +117,7 @@ function build(ctx, rerender) {
       h("textarea", { id: "v-ex-area", rows: "8", readonly: true, "data-fk": "v-ex-area", text: S.showText })) : null);
 
   return h("section", { class: "v-view", "aria-labelledby": "v-ins-h" },
-    h("h2", { id: "v-ins-h", class: "v-h2", text: "Insights" }), recapCard, wlCard, spendCard, catCard, itemCard, exportCard);
+    h("h2", { id: "v-ins-h", class: "v-h2", text: "Insights" }), recapCard, budCard, wlCard, spendCard, catCard, itemCard, exportCard);
 }
 
 export default { id, label, render };

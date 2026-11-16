@@ -42,8 +42,17 @@ function formatISO(ms) {
   return `${y}-${m}-${d}`;
 }
 
+export const MIN_YEAR = 1900;
+export const MAX_YEAR = 2200;
+export const MAX_COST = 1e9;
+
+/** A real calendar day within a sane range (1900-2200), so later date math can never overflow. */
 export function isValidISO(s) {
-  try { parseISO(s); return true; } catch { return false; }
+  try {
+    const ms = parseISO(s);
+    const y = new Date(ms).getUTCFullYear();
+    return y >= MIN_YEAR && y <= MAX_YEAR;
+  } catch { return false; }
 }
 
 export function daysBetween(aISO, bISO) {
@@ -137,7 +146,9 @@ export function dueInfo(task, state, today) {
     else {
       const { rate } = estimateMilesPerDay(v, today);
       const days = Math.min(MAX_INTERVAL_DAYS, Math.ceil(milesLeft / rate));
-      est = addDays(today, days);
+      // Count from the day the odometer was last read, not from today: a stale reading means less time is left.
+      const from = isValidISO(v.odometerDate) && v.odometerDate < today ? v.odometerDate : today;
+      est = addDays(from, days);
     }
     let due = est;
     if (cap && cap < due) { due = cap; basis = "date"; }
@@ -262,7 +273,7 @@ function validatePhotoIds(v) {
 function validateCost(v) {
   if (v == null || v === "") return null;
   const n = typeof v === "string" ? Number(v) : v;
-  if (typeof n !== "number" || !Number.isFinite(n) || n < 0) throw new Error("Cost must be a number of 0 or more");
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 0 || n > MAX_COST) throw new Error("Cost must be a number from 0 to 1,000,000,000");
   return n;
 }
 
@@ -359,6 +370,9 @@ export function snoozeTask(state, taskId, untilISO, today) {
   parseISO(untilISO);
   if (untilISO <= today) throw new Error("Snooze date must be after today");
   if (untilISO > addDays(today, 365)) throw new Error("Snooze date can be at most one year out");
+  let due = null;
+  try { due = dueInfo(state.tasks[i], state, today).dueDate; } catch { /* unreadable task: skip this check */ }
+  if (due && due > today && untilISO <= due) throw new Error(`That's before it's due (${due}). Pick a later day.`);
   return { ...state, tasks: mapAt(state.tasks, i, (t) => ({ ...t, snoozedUntil: untilISO })) };
 }
 

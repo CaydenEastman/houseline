@@ -109,3 +109,40 @@ test("Today: select tasks then mark them done together", () => {
   btn(container, (b) => /^Mark 2 done today/.test(b.textContent)).click();
   assert.deepEqual(calls.many[0].sort(), ["a", "b"]);
 });
+
+import { estimateFor, runsPerYear, yearlyBudget, rangeText } from "../src/costs.js";
+import { mkVehicle } from "./helpers.mjs";
+import insights from "../src/views/insights.js";
+
+test("costs: typical estimate, own costs override, unknown is null", () => {
+  const t = mkTask({ id: "a", title: "Oil change — Van", kind: "mileage", intervalMiles: 5000, intervalDays: 180, vehicleId: "v1" });
+  const base = mkState({ vehicles: [mkVehicle({ id: "v1" })], tasks: [t] });
+  const e = estimateFor(t, base);
+  assert.deepEqual([e.low, e.high, e.source], [40, 100, "typical"]);
+  const own = { ...base, completions: [mkCompletion({ id: "c1", taskId: "a", cost: 62, date: "2026-05-01" }), mkCompletion({ id: "c2", taskId: "a", cost: 80, date: "2026-01-01" })] };
+  const o = estimateFor(t, own);
+  assert.deepEqual([o.low, o.high, o.source], [62, 80, "yours"]);
+  assert.equal(estimateFor(mkTask({ title: "My custom thing" }), base), null);
+  assert.equal(rangeText({ low: 0, high: 0 }), "");
+  assert.equal(rangeText({ low: 40, high: 100 }), "$40 to $100");
+  assert.equal(rangeText({ low: 62, high: 62 }), "$62");
+});
+test("costs: runs per year and yearly budget", () => {
+  const v = mkVehicle({ id: "v1" });
+  const mil = mkTask({ id: "m", title: "Oil change", kind: "mileage", intervalMiles: 5000, intervalDays: 180, vehicleId: "v1" });
+  assert.ok(Math.abs(runsPerYear(mil, mkState({ vehicles: [v] }), T) - (33 * 365) / 5000) < 1e-9);
+  assert.equal(runsPerYear(mkTask({ kind: "annual", month: 3, day: 1 }), mkState(), T), 1);
+  assert.equal(runsPerYear(mkTask({ intervalDays: 73 }), mkState(), T), 5);
+  const s = mkState({ tasks: [mkTask({ id: "f", title: "Furnace service", kind: "annual", month: 9, day: 15, intervalDays: null, category: "house" }), mkTask({ id: "x", title: "Unknown" })] });
+  const b = yearlyBudget(s, T);
+  assert.deepEqual([b.low, b.high, b.uncounted], [80, 200, 1]);
+  assert.equal(b.items.length, 1);
+});
+test("Insights shows yearly upkeep with the ballpark caveat", () => {
+  const doc = makeDocument(); const container = doc.createElement("div");
+  const st = mkState({ tasks: [mkTask({ id: "f", title: "Furnace service", kind: "annual", month: 9, day: 15, category: "house" })] });
+  insights.render(container, { doc, h: (t, a, ...c) => rawH(doc, t, a, ...c), getState: () => st, today: () => T, saveFile: async () => false, personName: () => "x" });
+  assert.ok(container.textContent.includes("Estimated yearly upkeep"));
+  assert.ok(container.textContent.includes("$80 to $200"));
+  assert.ok(container.textContent.includes("Ballpark only"));
+});
