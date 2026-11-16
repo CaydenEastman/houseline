@@ -306,28 +306,15 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     return names[id] || "Someone";
   }
 
-  // ---------- Today banner ----------
+  // ---------- Sync indicator (header) ----------
   const SYNC_LABEL = { saved: "Saved", saving: "Saving…", error: "Not saved", offline: "Offline", local: "Local only" };
   function renderStrip() {
-    const warr = safe(() => warrantyAlerts(state, today), []);
-    const ready = safe(() => readiness(state, today), null);
-    const expiring = ready ? ready.expiring.length : 0;
-    const expired = ready ? ready.expired.length : 0;
-    const go = (tab, fn) => () => { if (fn) fn(); setView(tab, true); };
-    const chip = (cls, text, onclick) => h("li", {}, h("button", { type: "button", class: `strip-chip ${cls}`, text, onclick }));
-    // Task counts live in the Today feed now. The banner only adds what the feed doesn't show: warranties and supplies.
-    const items = [];
-    if (active === "today") {
-      if (warr.length) items.push(chip("soon", `${plural(warr.length, "warranty")} ending or ended`, go("inventory")));
-      if (expired) items.push(chip("overdue", `${plural(expired, "supply item")} expired`, go("emergency")));
-      if (expiring) items.push(chip("soon", `${plural(expiring, "supply item")} expiring soon`, go("emergency")));
-    }
+    // The old banner is gone. Only the small sync indicator remains, up in the header next to Settings.
+    els.strip.hidden = true; els.strip.replaceChildren();
     const pillKind = store.mode === "local" && sync.kind === "saved" ? "local" : sync.kind;
-    els.strip.replaceChildren(
-      h("div", { class: "strip-top" },
-        h("h2", { class: "strip-title", text: isoToLocalDate(today).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) }),
-        h("span", { class: `pill sync-${pillKind}`, title: sync.message || "", text: SYNC_LABEL[pillKind] || "Saved" })),
-      items.length ? h("ul", { class: "strip-list", "aria-label": "Needs attention" }, items) : null);
+    const pill = h("span", { id: "sync-pill", class: `pill sync-${pillKind}`, title: sync.message || "", text: SYNC_LABEL[pillKind] || "Saved" });
+    const old = doc.getElementById("sync-pill");
+    if (old) old.replaceWith(pill); else els.headerActions.prepend(pill);
   }
 
   // ---------- navigation ----------

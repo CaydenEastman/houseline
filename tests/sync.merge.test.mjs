@@ -144,6 +144,7 @@ test('2 devices: simultaneous saves with a ttl lock capability keep both adds', 
   const db = fakeDb({ setDelay: 5 });
   let held = null; // {holder, until}
   db.lock = async ({ holder, ttlMs }) => { const t = Date.now(); if (held && held.until > t && held.holder !== holder) return { acquired: false }; held = { holder, until: t + ttlMs }; return { acquired: true }; };
+  db.unlock = async ({ holder }) => { if (held && held.holder === holder) held = null; };
   const { A, B } = await twoDevices(db, mkState({ tasks: [tk('a')] }), { lockRetryMs: 40 });
   await Promise.all([A.store.save({ ...A.state, tasks: [...A.state.tasks, tk('fromA')] }), B.store.save({ ...B.state, tasks: [...B.state.tasks, tk('fromB')] })]);
   // Poll instead of one fixed sleep so a busy machine running other test files can't make this flaky.

@@ -312,6 +312,14 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
     } catch { /* lock is best-effort: proceed without it */ }
   }
 
+  // Best effort: free the lock as soon as the write is done so the other device doesn't have to wait out the timer.
+  async function releaseLock() {
+    try {
+      const ref = db.doc("household/lock");
+      if (ref && typeof ref.release === "function") await ref.release({ holder: clientId });
+    } catch { /* the lock expires on its own */ }
+  }
+
   async function writeShards(state, serialized) {
     const wanted = shardState(state); // may throw tooLarge
     const wantedCanon = {};
@@ -423,7 +431,7 @@ export async function createStore({ localStorage, claude, now = () => Date.now()
               result = false;
               if (e && e.tooLarge) emit("error", errMsg(e));
               else emit("offline", `Saved on this device; cloud sync failed (${errMsg(e)}). Will retry on the next change.`);
-            } finally { writing = false; }
+            } finally { writing = false; await releaseLock(); }
           } else if (cacheErr) {
             result = false;
             emit("error", `Could not save on this device: ${errMsg(cacheErr)}`);

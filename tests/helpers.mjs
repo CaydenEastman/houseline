@@ -63,7 +63,7 @@ export const v1Fixture = () => ({
 const sleepH = (ms) => new Promise((r) => setTimeout(r, ms));
 export function fakeDb({ setDelay = 0 } = {}) {
   const docs = new Map(), listeners = new Map(), writes = [], raw = [];
-  const o = { docs, writes, raw, lockCalls: [], lock: null };
+  const o = { docs, writes, raw, lockCalls: [], lock: null, unlock: null };
   const snap = (p) => { const v = docs.get(p); return { exists: v !== undefined, data: () => (v === undefined ? undefined : clone(v)) }; };
   const colSnap = (name) => ({ docs: [...docs.entries()].filter(([k]) => k.startsWith(name + '/')).map(([k, v]) => ({ id: k.slice(name.length + 1), exists: true, data: () => clone(v) })) });
   const emit = (p) => {
@@ -83,7 +83,7 @@ export function fakeDb({ setDelay = 0 } = {}) {
       async delete() { docs.delete(p); emit(p); },
       onSnapshot(cb) { if (!listeners.has(p)) listeners.set(p, new Set()); listeners.get(p).add(cb); queueMicrotask(() => cb(snap(p))); return () => listeners.get(p).delete(cb); },
     };
-    if (p === 'household/lock' && o.lock) d.acquire = (opts) => { o.lockCalls.push(opts); return o.lock(opts); };
+    if (p === 'household/lock' && o.lock) { d.acquire = (opts) => { o.lockCalls.push(opts); return o.lock(opts); }; if (o.unlock) d.release = (opts) => o.unlock(opts); }
     return d;
   };
   return o;
