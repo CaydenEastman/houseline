@@ -83,3 +83,28 @@ test("signed in: shows the email, and Sign out asks first, then signs out and re
   assert.deepEqual(auth.calls, [["signout"]]);
   assert.equal(reloads.length, 1);
 });
+
+test("signed in with push available: Settings offers a morning time and turns server reminders on and off", async () => {
+  const auth = fakeAuth({ session: { user: { email: "me@example.com" } } });
+  const calls = [];
+  const motPush = { _h: null, hour() { return this._h; }, async enable(h) { calls.push(["on", h]); this._h = h; }, async disable() { calls.push(["off"]); this._h = null; } };
+  const reloads = [];
+  const doc = makeDocument();
+  doc.defaultView = { localStorage: fakeLS({ "motH.tour": "1" }), motAuth: auth, motPush, location: { origin: "https://me.github.io", pathname: "/x/", reload: () => reloads.push(1), assign() {} } };
+  globalThis.Notification = { permission: "granted", requestPermission: async () => "granted" };
+  Object.defineProperty(globalThis, "navigator", { value: { serviceWorker: {} }, configurable: true });
+  const hadWindow = "window" in globalThis; const prevWindow = globalThis.window;
+  globalThis.window = { Notification: globalThis.Notification, matchMedia: () => ({ matches: false }) };
+  await mount(doc, { store: store(), state: state() });
+  doc.getElementById("nav").querySelector("#nav-you").click(); await sleep(5);
+  tile(doc, "hub-settings").click(); await sleep(5);
+  const dlg = doc.getElementById("settings-dialog");
+  assert.ok(dlg.querySelector("#s-remind-hour"), "time picker shown");
+  dlg.querySelector("#s-remind").click(); await sleep(20);
+  assert.deepEqual(calls, [["on", 8]], "defaults to 8 AM");
+  assert.ok(dlg.querySelector("#s-remind").textContent.includes("Turn off"));
+  dlg.querySelector("#s-remind").click(); await sleep(20);
+  assert.deepEqual(calls[1], ["off"]);
+  delete globalThis.Notification;
+  if (hadWindow) globalThis.window = prevWindow; else delete globalThis.window;
+});

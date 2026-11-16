@@ -37,6 +37,12 @@ async function supabaseBackend(localStorage) {
     catch { /* bad or expired link: stay signed out */ }
     finally { if (String(location.hash).includes("access_token=")) history.replaceState(null, "", location.pathname + location.search); } // never leave tokens in the address bar
     window.motAuth = auth; // the sign-in screen (next step) uses this
+    if (cfg.VAPID_PUBLIC_KEY) {
+      const { createPush, pushSupported } = await import("./push.js");
+      if (pushSupported(window)) {
+        window.motPush = createPush({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, auth, vapidKey: cfg.VAPID_PUBLIC_KEY, ls: localStorage });
+      }
+    }
     return createSupabaseBackend({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, auth, realtime: true });
   } catch { return none; }
 }

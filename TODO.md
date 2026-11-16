@@ -40,8 +40,9 @@ The app itself works. What follows is the infrastructure around it: where data l
 
 Today: one notification a day, only when the app is opened.
 
-- [ ] Web Push: generate VAPID keys; on "Turn on reminders" subscribe the phone and send the subscription to the backend.
-- [ ] A scheduled job (Supabase cron or Cloudflare Worker cron) that runs each morning, finds each household's due and overdue tasks, and sends a push. Store the user's time zone and preferred hour.
+- [x] Web Push: signing keys are generated inside the database (private key never leaves it); Settings, Reminders subscribes the phone and saves it (`src/push.js`, table `push_subscriptions`).
+- [x] Hourly pg_cron job calls the `send-reminders` Edge Function, which sends one push per phone at its chosen local hour (time zone stored per phone). Its due-date code is a copy in `supabase/functions/send-reminders/due.js`; update it if due-date rules in `src/logic.js` change.
+- [ ] **You:** on your phone, open the installed app, Settings, Reminders, pick a time and turn them on. Use the test steps in `supabase/SETUP.md`.
 - [ ] iPhone only delivers web push to apps added to the Home Screen (iOS 16.4+). Keep the install tip visible.
 - [ ] Optional email digest (Resend or Postmark) for people who do not install, and as a fallback.
 - [ ] Optional SMS later (Twilio); costs money per message.

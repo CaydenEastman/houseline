@@ -81,7 +81,7 @@ Runs against a small stub DOM (`tests/stubdom.mjs`), so there is no browser depe
 
 ## Known limits
 
-- Reminders only fire when the app is opened. A closed web app cannot wake itself without a server sending push messages (see `TODO.md`).
+- Morning push reminders (signed in, installed app) arrive even when the app is closed. Without signing in, reminders only fire when the app is opened. iPhone needs the app added to the Home Screen first.
 - Changes from another phone arrive instantly over a live connection (Supabase Realtime). If that connection is blocked, the app falls back to checking every 20 seconds. Household sharing is not built yet.
 - Saves to the cloud are conditional: if another phone saved first, the app re-reads, merges, and saves again, so one save never silently overwrites another.
 - Photos are not part of backups.

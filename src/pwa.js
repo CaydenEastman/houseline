@@ -77,6 +77,7 @@ export function initPwa({ ls, getState, getToday }) {
   registerSW().then((reg) => {
     const run = async () => { try { await maybeNotify({ ls, state: await getState(), today: getToday(), reg }); } catch { /* ignore */ } };
     run();
+    try { if (typeof window !== "undefined" && window.motPush) window.motPush.refresh(); } catch { /* ignore */ }
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") run(); });
   });
 }

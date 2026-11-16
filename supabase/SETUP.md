@@ -21,3 +21,9 @@
 Instant updates need nothing extra: `schema.sql` already adds the `docs` table to Supabase Realtime. If the live connection is ever blocked, the app falls back to checking every 20 seconds.
 
 What gets created: tables `households`, `household_members`, `docs`, `locks`; a private `photos` storage bucket; and the rules that let a signed-in user reach only their own household.
+
+## Morning push reminders (already set up for this project)
+
+- Tables `push_subscriptions` (one row per phone, owner-only) and `push_config` (server-only: signing keys and a cron secret) are in the migration `push_reminders`.
+- Edge Function `send-reminders` (no JWT; it checks the `x-cron-secret` header) runs hourly via pg_cron job `send-reminders-hourly`. The signing keys are created on first call and never leave the database; the public key is in `config.js` as `VAPID_PUBLIC_KEY`.
+- To test without waiting for morning: turn reminders on in the app, then in the Supabase SQL editor run the `net.http_post` call to `/functions/v1/send-reminders?force=1` with the `x-cron-secret` header from `push_config`. Add `&dry=1` to preview without sending.

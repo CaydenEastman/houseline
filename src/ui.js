@@ -1003,12 +1003,51 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   function remindersPanel() {
     const ls = doc.defaultView && doc.defaultView.localStorage;
     const wrap = h("div", { class: "reminders" });
+    const hourLabel = (n) => `${((n + 11) % 12) + 1}:00 ${n < 12 ? "AM" : "PM"}`;
     const paint = () => {
+      const push = doc.defaultView && doc.defaultView.motPush;
+      const auth = authOf();
+      const canPush = !!push && !!auth && !!auth.session();
+      const pushHour = canPush ? push.hour() : null;
       const on = !!ls && pwa.remindersOn(ls);
+      if (canPush && pwa.supported()) {
+        const sel = h("select", { id: "s-remind-hour", "aria-label": "Reminder time" },
+          ...Array.from({ length: 24 }, (_, n) => h("option", { value: String(n), text: hourLabel(n), selected: n === (pushHour == null ? 8 : pushHour) })));
+        const btn = h("button", { type: "button", class: "btn", id: "s-remind", text: pushHour != null ? "Turn off reminders" : "Turn on reminders" });
+        const busy = (b) => { btn.disabled = b; sel.disabled = b; };
+        btn.addEventListener("click", async () => {
+          busy(true);
+          try {
+            if (pushHour != null) { await push.disable(); pwa.disableReminders(ls); toast("Reminders turned off."); }
+            else {
+              const r = await pwa.enableReminders(ls);
+              if (!r.ok) { toast(r.why === "denied" ? "Notifications are blocked. Allow them in your browser settings, then try again." : "Reminders aren't available here.", { error: true }); return; }
+              await push.enable(Number(sel.value));
+              toast(`Reminders on. You'll get one each morning at ${hourLabel(Number(sel.value))}.`);
+            }
+          } catch (e) { toast(e && e.message ? e.message : "Couldn't change reminders.", { error: true }); }
+          finally { paint(); }
+        });
+        sel.addEventListener("change", async () => {
+          if (pushHour == null) return;
+          busy(true);
+          try { await push.enable(Number(sel.value)); toast(`Reminder time set to ${hourLabel(Number(sel.value))}.`); }
+          catch (e) { toast(e && e.message ? e.message : "Couldn't change the time.", { error: true }); }
+          finally { paint(); }
+        });
+        const kids = [
+          h("p", { class: "hint", text: pushHour != null
+            ? `On. You'll get one notification each morning at ${hourLabel(pushHour)} when something is overdue or due, even if the app is closed.`
+            : "Get a notification each morning when something is overdue or due, even if the app is closed." }),
+          h("div", { class: "field" }, h("label", { for: "s-remind-hour", text: "Time" }), sel), btn];
+        if (!pwa.isStandalone()) kids.push(h("p", { class: "hint", text: "On iPhone, reminders only work after you add the app to your Home Screen (Share, then Add to Home Screen) and open it from there." }));
+        wrap.replaceChildren(...kids);
+        return;
+      }
       const msg = !pwa.supported()
         ? "Phone reminders aren't available in this browser. Add the app to your Home Screen from a regular browser to use them."
         : on ? "On. You'll get one notification a day when something is overdue or due, the next time you open the app."
-        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day.";
+        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day." + (push && auth && !auth.session() ? " Sign in (Account, above) to get it every morning even when the app is closed." : "");
       const btn = h("button", { type: "button", class: "btn", id: "s-remind", text: on ? "Turn off reminders" : "Turn on reminders", disabled: !pwa.supported() });
       btn.addEventListener("click", async () => {
         if (on) { pwa.disableReminders(ls); toast("Reminders turned off."); paint(); return; }

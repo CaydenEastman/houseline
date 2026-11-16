@@ -1,5 +1,5 @@
 /* Man of the House service worker: works offline, always prefers fresh files when online. */
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "moth-" + VERSION;
 const SHELL = [
   "./", "index.html", "styles.css", "styles-views.css", "manifest.webmanifest",
@@ -7,7 +7,7 @@ const SHELL = [
   "src/main.js", "src/ui.js", "src/sync.js", "src/storage.js", "src/logic.js", "src/dom.js",
   "src/templates.js", "src/wizard.js", "src/calendar.js", "src/ics.js", "src/quickadd.js",
   "src/quickform.js", "src/importcsv.js", "src/costs.js", "src/photos.js", "src/readiness.js",
-  "src/recap.js", "src/insights.js", "src/pwa.js", "src/auth.js", "src/supabase.js", "config.js",
+  "src/recap.js", "src/insights.js", "src/pwa.js", "src/push.js", "src/auth.js", "src/supabase.js", "config.js",
   "src/views/shared.js", "src/views/today.js", "src/views/calendar.js", "src/views/hubs.js",
   "src/views/inventory.js", "src/views/vehicles.js", "src/views/vendors.js",
   "src/views/emergency.js", "src/views/history.js", "src/views/insights.js",
@@ -30,6 +30,15 @@ self.addEventListener("fetch", (e) => {
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || (req.mode === "navigate" ? caches.match("index.html") : Response.error()))),
   );
+});
+
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { /* plain-text or empty push */ }
+  e.waitUntil(self.registration.showNotification(d.title || "Man of the House", {
+    body: d.body || "Something needs doing around the house.",
+    icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "moth-daily", data: { url: d.url || "./" },
+  }));
 });
 
 self.addEventListener("notificationclick", (e) => {
