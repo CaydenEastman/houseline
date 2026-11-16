@@ -311,3 +311,23 @@ textarea.v-pre { border: 1.5px solid var(--muted); resize: vertical; }
 /* No green header: the app starts straight at the content. Settings lives under You; the page title stays for screen readers. */
 .site-header { display: none; }
 #app, #wizard { padding-top: max(.75rem, env(safe-area-inset-top)); }
+
+/* ---------- Fit any screen: nothing may be wider than the viewport ---------- */
+html, body { max-width: 100%; overflow-x: clip; }
+img, svg, video, canvas, table, pre, textarea, input, select { max-width: 100%; }
+.view, .view-body, .v-view, #main, #app, #wizard, .wrap { min-width: 0; max-width: 100%; }
+/* grid children may shrink below their content, so wide rows (chip bars, long words) scroll or wrap inside instead */
+.tf, .tf-head, .hub, .v-view { grid-template-columns: minmax(0, 1fr); }
+.tf > *, .tf-head > *, .hub > *, .v-view > * { min-width: 0; }
+.tf-bar { min-width: 0; }
+.chips { max-width: 100%; }
+.v-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; }
+.v-card, .v-card p, .v-card a, .v-card-top, .hub-text, .tf-name, .v-meta, .v-lede { overflow-wrap: anywhere; min-width: 0; }
+a, p, li, td, th, h1, h2, h3, h4, strong { overflow-wrap: anywhere; }
+.v-table { display: block; max-width: 100%; overflow-x: auto; }
+/* Add sheet: the quick-add row and its notes must shrink to the dialog, never push it wider */
+.v-quick { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.v-quick > *, .v-quick-row, .v-quick-note { min-width: 0; max-width: 100%; }
+.v-quick-row .btn { flex: 0 0 auto; }
+dialog { max-width: calc(100vw - 1rem); overflow-x: hidden; }
+dialog *, .add-grid > * { min-width: 0; }
