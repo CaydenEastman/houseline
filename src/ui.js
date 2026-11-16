@@ -167,6 +167,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   const ctx = {
     doc, h, getState: () => state, commit, today: () => today, store, me, names,
     openTaskForm: (t) => openTaskForm(t || null), toast: (m) => void toast(m), photos, saveFile,
+    // Opens the same "Complete task" dialog as the Done button on the Tasks tab; unknown ids are ignored.
+    completeTask: (taskId) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (task) openComplete(task, doc.activeElement);
+    },
   };
 
   // ---------- dialogs ----------
