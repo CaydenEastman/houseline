@@ -1,5 +1,5 @@
 // Vehicles view: CRUD, odometer updates, per-vehicle tasks, inline service history.
-import { estimateMilesPerDay, addVehicle, updateVehicle, deleteVehicle, setOdometer, dueInfo, statusOf, sortTasks, daysBetween } from "../logic.js";
+import { VEHICLE_SPECS, estimateMilesPerDay, addVehicle, updateVehicle, deleteVehicle, setOdometer, dueInfo, statusOf, sortTasks, daysBetween } from "../logic.js";
 import { seedFromProfile } from "../templates.js";
 import { fmtDate, fmtMoney } from "../dom.js";
 
@@ -129,6 +129,7 @@ function vehicleCard(ctx, state, today, v, rerender) {
       ? `About ${Math.round(rate)} miles a day, based on your recent odometer updates.`
       : `Not enough odometer updates yet for a personal estimate. Using about ${DEFAULT_RATE} miles a day until there are two updates at least two weeks apart.` }),
     odoOpen ? odoForm(ctx, v, rerender) : null,
+    detailsSummary(ctx, v),
     h("h4", { class: "v-h5", text: "Tasks for this vehicle" }),
     tasks.length
       ? h("ul", { class: "v-mini" }, tasks.map((t) => {
@@ -153,8 +154,8 @@ function vehicleCard(ctx, state, today, v, rerender) {
           h("button", { type: "button", class: "btn", "data-fk": `addtasks-${v.id}`,
             "aria-describedby": `addtasks-note-${v.id}`, text: "Add vehicle tasks",
             onclick: () => addTasks(ctx, v, rerender) }),
-          h("button", { type: "button", class: "btn subtle", "data-fk": `ve-${v.id}`, "aria-label": `Rename ${v.name}`, text: "Rename",
-            onclick: () => { S.edit = { id: v.id, name: v.name, error: "" }; S.pending = `ve-in-${v.id}`; rerender(); } }),
+          h("button", { type: "button", class: "btn subtle", "data-fk": `ve-${v.id}`, "aria-label": `Edit details for ${v.name}`, text: "Edit details",
+            onclick: () => { S.edit = editDraft(v); S.pending = `ve-in-${v.id}`; rerender(); } }),
           h("button", { type: "button", class: "btn subtle danger", "data-fk": `vd-${v.id}`, "aria-label": `Delete ${v.name}`, text: "Delete",
             onclick: () => { S.confirmDel = v.id; S.pending = `vd-no-${v.id}`; rerender(); } })),
     h("p", { id: `addtasks-note-${v.id}`, class: "v-hint",
@@ -181,6 +182,27 @@ function addTasks(ctx, v, rerender) {
   } catch (e) { ctx.toast(e.message || "Couldn't add vehicle tasks."); }
 }
 
+const EXTRA_KEYS = ["year", "make", "model", "manualUrl", ...VEHICLE_SPECS.map((x) => x.key)];
+function editDraft(v) {
+  const d = { id: v.id, name: v.name, error: "" };
+  for (const k of EXTRA_KEYS) d[k] = v[k] == null ? "" : String(v[k]);
+  return d;
+}
+
+/** Make, manual link and the specs written down for this vehicle. */
+function detailsSummary(ctx, v) {
+  const { h } = ctx;
+  const bits = [];
+  const label = [v.year, v.make, v.model].filter(Boolean).join(" ");
+  if (label) bits.push(["Vehicle", label]);
+  for (const sp of VEHICLE_SPECS) if (v[sp.key]) bits.push([sp.label, String(v[sp.key])]);
+  const manual = v.manualUrl && /^https?:\/\//i.test(v.manualUrl) ? v.manualUrl : null;
+  if (!bits.length && !manual) return h("p", { class: "v-hint", text: "Add the year, make and model, your oil type and filter numbers under Edit details. Tasks for this car will then show them, and link straight to the right manual." });
+  return h("div", { class: "v-details" },
+    bits.length ? h("dl", { class: "v-facts" }, bits.map(([k, val]) => h("div", { class: "v-fact" }, h("dt", { text: k }), h("dd", { text: val })))) : null,
+    manual ? h("p", {}, h("a", { href: manual, target: "_blank", rel: "noopener noreferrer", text: "\u{1F4D6} Owner's manual" })) : null);
+}
+
 function editForm(ctx, v, rerender) {
   const { h } = ctx;
   const d = S.edit;
@@ -189,17 +211,29 @@ function editForm(ctx, v, rerender) {
     const name = d.name.trim();
     if (!name) { d.error = "The vehicle needs a name."; S.pending = `ve-in-${v.id}`; return rerender(); }
     try {
-      const next = updateVehicle(ctx.getState(), v.id, { name });
+      const patch = { name };
+      for (const k of EXTRA_KEYS) patch[k] = typeof d[k] === "string" ? d[k].trim() : d[k];
+      const next = updateVehicle(ctx.getState(), v.id, patch);
       S.edit = null; S.pending = `ve-${v.id}`;
-      ctx.commit(next, "Vehicle renamed");
+      ctx.commit(next, "Vehicle details saved");
     } catch (err) { d.error = err.message; S.pending = `ve-in-${v.id}`; rerender(); }
   };
-  return h("form", { class: "v-inline-form", novalidate: true, onsubmit: submit, "aria-label": `Rename ${v.name}` },
+  const field = (key, lab, o = {}) => h("div", { class: "field" },
+    h("label", { for: `ve-${key}-${v.id}`, text: lab }),
+    h("input", { id: `ve-${key}-${v.id}`, "data-fk": `ve-${key}-${v.id}`, type: o.type || "text", inputmode: o.inputmode || null, maxlength: o.max || "100", value: d[key], autocomplete: "off",
+      oninput: (e) => { d[key] = e.target.value; } }),
+    o.hint ? h("p", { class: "v-hint", text: o.hint }) : null);
+  return h("form", { class: "v-inline-form", novalidate: true, onsubmit: submit, "aria-label": `Edit details for ${v.name}` },
     h("div", { class: "field" }, h("label", { for: `ve-in-${v.id}`, text: "Vehicle name" }),
       h("input", { id: `ve-in-${v.id}`, "data-fk": `ve-in-${v.id}`, type: "text", maxlength: "120", value: d.name, oninput: (e) => { d.name = e.target.value; } })),
+    h("div", { class: "v-grid3" }, field("year", "Year", { inputmode: "numeric", max: "4" }), field("make", "Make", { max: "60" }), field("model", "Model", { max: "60" })),
+    field("manualUrl", "Owner's manual link", { type: "url", max: "500", hint: "Paste the web address of your manual (PDF or page). Tasks for this car will link to it." }),
+    h("h5", { class: "v-h5", text: "Specs (optional)" }),
+    h("p", { class: "v-hint", text: "Fill these in once and the oil change, tire and filter tasks will show them." }),
+    ...VEHICLE_SPECS.map((sp) => field(sp.key, sp.label, { hint: sp.hint })),
     h("p", { class: "form-error", role: "alert", text: d.error }),
     h("div", { class: "v-actions" },
-      h("button", { type: "submit", class: "btn v-primary", text: "Save name" }),
+      h("button", { type: "submit", class: "btn v-primary", text: "Save details" }),
       h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => { S.edit = null; S.pending = `ve-${v.id}`; rerender(); } })));
 }
 

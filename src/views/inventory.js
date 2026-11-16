@@ -43,7 +43,7 @@ function emptyDraft(item) {
     id: item ? item.id : null,
     name: item ? item.name : "", kind: item ? item.kind : "appliance",
     location: item ? item.location || "" : "", model: item ? item.model || "" : "",
-    filterSize: item ? item.filterSize || "" : "",
+    filterSize: item ? item.filterSize || "" : "", manualUrl: item ? item.manualUrl || "" : "",
     purchaseDate: item ? item.purchaseDate || "" : "", warrantyExpires: item ? item.warrantyExpires || "" : "",
     notes: item ? item.notes || "" : "",
     photoIds: item ? [...(item.photoIds || [])] : [],
@@ -122,6 +122,7 @@ function itemCard(ctx, state, today, item, rerender) {
       h("h4", { class: "v-card-title", text: item.name }),
       warrantyBadge(ctx, item, today)),
     facts.length ? h("dl", { class: "v-facts" }, facts.map(([k, v]) => h("div", { class: "v-fact" }, h("dt", { text: k }), h("dd", { text: v })))) : null,
+    item.manualUrl && /^https?:\/\//i.test(item.manualUrl) ? h("p", {}, h("a", { href: item.manualUrl, target: "_blank", rel: "noopener noreferrer", text: "\u{1F4D6} Manual" })) : null,
     item.notes ? h("p", { class: "v-notes", text: item.notes }) : null,
     photos.length ? h("div", { class: "v-thumbs" }, photos) : null,
     h("div", { class: "v-linked" },
@@ -191,7 +192,7 @@ function itemForm(ctx, rerender) {
     }
     const data = {
       name, kind: d.kind, location: d.location.trim(), model: d.model.trim(), filterSize: d.filterSize.trim(),
-      purchaseDate: d.purchaseDate || null, warrantyExpires: d.warrantyExpires || null,
+      purchaseDate: d.purchaseDate || null, warrantyExpires: d.warrantyExpires || null, manualUrl: d.manualUrl.trim(),
       notes: d.notes.trim(), photoIds: d.photoIds.slice(0, MAX_PHOTOS),
     };
     try {
@@ -232,6 +233,7 @@ function itemForm(ctx, rerender) {
         KINDS.map(([k, l]) => h("option", { value: k, selected: d.kind === k, text: l })))),
     h("div", { class: "v-row2" }, txt("location", "Location (room or area)"), txt("model", "Model / serial")),
     txt("filterSize", "Filter size", { hint: "For example 16x25x1. Handy when you're at the store." }),
+    txt("manualUrl", "Manual link", { type: "url", max: 500, hint: "Paste the web address of the manual. Tasks for this item will link to it." }),
     h("div", { class: "v-row2" },
       txt("purchaseDate", "Purchase date", { type: "date" }),
       txt("warrantyExpires", "Warranty ends", { type: "date" })),

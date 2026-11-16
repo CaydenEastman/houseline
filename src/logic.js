@@ -17,8 +17,22 @@ export const CLIMATE_TYPES = ["cold", "mild", "hot"];
 export const HOME_AGE_TYPES = ["new", "mid", "old"];
 export const LIMITS = {
   title: 120, vehicleName: 80, notes: 2000, text: 500, name: 120, label: 100, tag: 40, tags: 20,
-  links: 5, photos: 3, contacts: 12, assignee: 200, key: 40, unit: 40,
+  links: 5, photos: 3, contacts: 12, assignee: 200, key: 40, unit: 40, url: 500, make: 60, spec: 100,
 };
+
+/** Things worth writing down once per vehicle so the task for it can show them (stored flat so two phones merge cleanly). */
+export const VEHICLE_SPECS = [
+  { key: "oilType", label: "Oil type", hint: "For example 5W-30 full synthetic" },
+  { key: "oilCapacity", label: "Oil amount", hint: "For example 5.7 qt with filter" },
+  { key: "oilFilter", label: "Oil filter part number", hint: "" },
+  { key: "airFilter", label: "Engine air filter part number", hint: "" },
+  { key: "cabinFilter", label: "Cabin air filter part number", hint: "" },
+  { key: "tirePsi", label: "Tire pressure (cold)", hint: "It's on the sticker inside the driver door" },
+  { key: "tireSize", label: "Tire size", hint: "For example 235/65R17" },
+  { key: "wiperSizes", label: "Wiper blade sizes", hint: "For example 26 in driver, 16 in passenger" },
+  { key: "batterySize", label: "Battery group size", hint: "For example Group 24F" },
+  { key: "coolantType", label: "Coolant type", hint: "" },
+];
 
 // ---------- dates ----------
 
@@ -453,7 +467,43 @@ function findVehicle(state, id) {
   return i;
 }
 
-export function addVehicle(state, { name, odometer } = {}, idFn, today) {
+function cleanUrl(v, label = "Link") {
+  if (v == null || v === "") return null;
+  if (typeof v !== "string") throw new Error(`${label} must be a web address`);
+  const u = v.trim();
+  if (u.length > LIMITS.url) throw new Error(`${label} must be at most ${LIMITS.url} characters`);
+  let ok = false;
+  try { const x = new URL(u); ok = x.protocol === "http:" || x.protocol === "https:"; } catch { /* invalid */ }
+  if (!ok) throw new Error(`${label} must start with http:// or https://`);
+  return u;
+}
+
+/** Optional vehicle details: year, make, model, manual link and the VEHICLE_SPECS. Empty values are removed. */
+function vehicleExtras(patch) {
+  const out = {};
+  if ("year" in patch) {
+    const y = patch.year;
+    if (y == null || y === "") out.year = null;
+    else {
+      const n = typeof y === "string" ? Number(y.trim()) : y;
+      if (!Number.isInteger(n) || n < 1900 || n > 2100) throw new Error("Year must be a four-digit year, like 2015");
+      out.year = n;
+    }
+  }
+  for (const k of ["make", "model"]) if (k in patch) out[k] = str(patch[k], k === "make" ? "Make" : "Model", LIMITS.make);
+  if ("manualUrl" in patch) out.manualUrl = cleanUrl(patch.manualUrl, "Manual link");
+  for (const { key, label } of VEHICLE_SPECS) if (key in patch) out[key] = str(patch[key], label, LIMITS.spec);
+  return out;
+}
+function applyExtras(v, extras) {
+  const next = { ...v };
+  for (const [k, val] of Object.entries(extras)) {
+    if (val == null || val === "") delete next[k]; else next[k] = val;
+  }
+  return next;
+}
+
+export function addVehicle(state, { name, odometer, ...more } = {}, idFn, today) {
   if (typeof idFn !== "function") throw new Error("addVehicle requires an id generator function");
   parseISO(today);
   const v = {
@@ -464,6 +514,7 @@ export function addVehicle(state, { name, odometer } = {}, idFn, today) {
     odometerLog: [],
   };
   v.odometerLog = [{ date: today, odometer: v.odometer }];
+  Object.assign(v, applyExtras({}, vehicleExtras(more)));
   const vehicles = state.vehicles || [];
   if (vehicles.some((x) => x.id === v.id)) throw new Error(`Duplicate vehicle id: ${v.id}`);
   return { ...state, vehicles: [...vehicles, v] };
@@ -499,7 +550,8 @@ export function updateVehicle(state, id, patch) {
     }
     next.odometerLog = log.slice(-MAX_ODOMETER_LOG);
   }
-  return { ...state, tasks, vehicles: mapAt(state.vehicles, i, () => next) };
+  const withExtras = applyExtras(next, vehicleExtras(patch));
+  return { ...state, tasks, vehicles: mapAt(state.vehicles, i, () => withExtras) };
 }
 
 /** Deletes the vehicle and its tasks; their completions are kept. */
@@ -542,6 +594,7 @@ function normalizeItem(raw) {
     warrantyExpires: optDate(raw.warrantyExpires, "Warranty expiry"),
     notes: notesOf(raw.notes),
     photoIds: validatePhotoIds(raw.photoIds),
+    ...(cleanUrl(raw.manualUrl, "Manual link") ? { manualUrl: cleanUrl(raw.manualUrl, "Manual link") } : {}),
   };
 }
 

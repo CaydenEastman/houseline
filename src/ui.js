@@ -23,6 +23,7 @@ import * as vendorsView from "./views/vendors.js";
 import { homeView, youView } from "./views/hubs.js";
 import { quickForm } from "./quickform.js";
 import * as pwa from "./pwa.js";
+import { helpPanel } from "./views/help.js";
 import { exportEverything, clearLocalCache } from "./household.js";
 
 export { localToday };
@@ -505,6 +506,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         h("p", { class: "meta", text: metaBits.join(" · ") }),
         task.notes ? h("p", { class: "notes", text: task.notes }) : null,
         links.length ? h("ul", { class: "task-links", "aria-label": "Links" }, links) : null,
+        helpPanel(h, task, state),
         (task.tags && task.tags.length) ? h("p", { class: "tags", "aria-label": "Tags" }, task.tags.map((g) => h("span", { class: "tag", text: `#${g}` }))) : null),
       rowActions(task, status));
     if (tv.deleteId === task.id) row.append(deletePanel(task));

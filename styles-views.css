@@ -343,3 +343,19 @@ dialog *, .add-grid > * { min-width: 0; }
 /* Today: filter chips wrap onto a second row instead of scrolling sideways; "Mark several done" sits on its own line above the list */
 .tf-chips { flex-wrap: wrap; overflow-x: visible; padding-bottom: 0; margin-bottom: .6rem; }
 .tf-selectrow { display: flex; justify-content: flex-end; margin: 0 0 .6rem; }
+
+/* How to & manuals */
+.task-help { margin-top: .5rem; }
+.task-help summary { cursor: pointer; font-weight: 600; font-size: .9rem; color: var(--brand); padding: .25rem 0; }
+.help-body { display: grid; gap: .6rem; padding: .4rem 0 .2rem; font-size: .92rem; }
+.help-body ul, .help-body ol { margin: .25rem 0 0; padding-left: 1.2rem; }
+.help-body li { margin: .15rem 0; }
+.help-specs dl { margin: .3rem 0 0; display: grid; gap: .2rem; }
+.help-specs dl div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.help-specs dt { color: var(--muted); } .help-specs dd { margin: 0; font-weight: 600; }
+.help-tip { margin: 0; padding: .5rem .7rem; border-left: 4px solid var(--soon); background: var(--soon-bg); border-radius: .3rem; }
+.help-nudge, .help-fine { margin: 0; color: var(--muted); font-size: .85rem; }
+.help-links { list-style: none; padding-left: 0 !important; display: grid; gap: .35rem; }
+.help-links a { display: inline-block; padding: .35rem .6rem; border: 1.5px solid var(--line); border-radius: .5rem; text-decoration: none; }
+.tf-help { grid-column: 1 / -1; }
+.v-grid3 { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr); gap: .5rem; }

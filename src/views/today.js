@@ -1,4 +1,5 @@
 // Today: a simple feed. Top line says what needs doing, chips filter by area, big cards each have one clear Done button.
+import { helpPanel } from "./help.js";
 import { agenda, homeScore, seasonNudges, mileageFlags, CAT_LABEL } from "../insights.js";
 import { estimateFor, rangeText } from "../costs.js";
 import { makePaint, plural, dueWords } from "./shared.js";
@@ -85,7 +86,8 @@ function build(ctx, rerender) {
     S.selecting ? null : h("div", { class: "tf-actions" },
       typeof ctx.completeTask === "function"
         ? h("button", { type: "button", class: "btn primary solid tf-done", text: "Done", "aria-label": `Done: ${r.task.title}`, "data-fk": `v-done-${r.task.id}`, onclick: () => ctx.completeTask(r.task.id) }) : null,
-      h("button", { type: "button", class: "tf-edit", text: "Edit", "aria-label": `Edit: ${r.task.title}`, onclick: () => ctx.openTaskForm(r.task) })));
+      h("button", { type: "button", class: "tf-edit", text: "Edit", "aria-label": `Edit: ${r.task.title}`, onclick: () => ctx.openTaskForm(r.task) })),
+    S.selecting ? null : (() => { const p = helpPanel(h, r.task, state); return p ? h("div", { class: "tf-help" }, p) : null; })());
 
   const feed = [];
   let lastGroup = null;

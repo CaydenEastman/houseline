@@ -2,7 +2,7 @@
 import { CATEGORIES } from "./templates.js";
 import {
   isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES, CLIMATE_TYPES, HOME_AGE_TYPES,
-  MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG, MAX_COST,
+  MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG, MAX_COST, VEHICLE_SPECS,
 } from "./logic.js";
 
 export const STORAGE_KEY = "motH.v1"; // key kept from v1 so existing data migrates in place
@@ -19,6 +19,7 @@ function need(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 const strMax = (v, max) => typeof v === "string" && v.length <= max;
+const okUrl = (u) => { if (typeof u !== "string" || u.length > LIMITS.url) return false; try { const x = new URL(u); return x.protocol === "http:" || x.protocol === "https:"; } catch { return false; } };
 
 function checkIds(arr, name) {
   const ids = new Set();
@@ -66,6 +67,10 @@ export function validateState(s) {
       need(isObj(e) && isISO(e.date) && isInt(e.odometer, 0, MAX_ODOMETER), `${p}.odometerLog[${j}] must be {date, odometer}`);
       if (j > 0) need(e.date >= v.odometerLog[j - 1].date, `${p}.odometerLog must be in ascending date order`);
     });
+    need(v.year === undefined || v.year === null || isInt(v.year, 1900, 2100), `${p}.year must be a four-digit year`);
+    for (const k of ["make", "model"]) need(v[k] === undefined || strMax(v[k], LIMITS.make), `${p}.${k} must be a string of at most ${LIMITS.make} characters`);
+    need(v.manualUrl === undefined || v.manualUrl === null || okUrl(v.manualUrl), `${p}.manualUrl must be an http(s) link`);
+    for (const { key } of VEHICLE_SPECS) need(v[key] === undefined || strMax(v[key], LIMITS.spec), `${p}.${key} must be a string of at most ${LIMITS.spec} characters`);
   });
 
   if (s.vendors !== undefined) {
@@ -89,6 +94,7 @@ export function validateState(s) {
     for (const k of ["location", "model", "filterSize"]) need(strMax(it[k], LIMITS.text), `${p}.${k} must be a string of at most ${LIMITS.text} characters`);
     for (const k of ["purchaseDate", "warrantyExpires"]) need(it[k] === null || isISO(it[k]), `${p}.${k} must be YYYY-MM-DD or null`);
     need(strMax(it.notes, LIMITS.notes), `${p}.notes must be a string of at most ${LIMITS.notes} characters`);
+    need(it.manualUrl === undefined || it.manualUrl === null || okUrl(it.manualUrl), `${p}.manualUrl must be an http(s) link`);
     checkPhotoIds(it.photoIds, p);
   });
 
