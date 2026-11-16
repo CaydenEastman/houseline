@@ -387,8 +387,8 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     refs.assignee = h("select", { id: "t-assignee", onchange: (e) => { tv.assignee = e.target.value; renderTasks(); } });
     refs.assigneeWrap = h("div", { class: "field inline-field", hidden: true },
       h("label", { for: "t-assignee", text: "Assigned to" }), refs.assignee);
-    refs.statusChips = h("div", { class: "chips", role: "group", "aria-label": "Filter by status" });
-    refs.catChips = h("div", { class: "chips", role: "group", "aria-label": "Filter by category" });
+    refs.statusChips = h("div", { class: "chips wrap-chips", role: "group", "aria-label": "Filter by status" });
+    refs.catChips = h("div", { class: "chips wrap-chips", role: "group", "aria-label": "Filter by category" });
     refs.count = h("p", { class: "sr-only", role: "status", "aria-live": "polite" });
     refs.list = h("div", { id: "list" });
     body.replaceChildren(

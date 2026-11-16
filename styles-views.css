@@ -362,3 +362,5 @@ dialog *, .add-grid > * { min-width: 0; }
 .tf-more { display: flex; justify-content: center; margin: .8rem 0; }
 .backups { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--line, rgba(128,128,128,.3)); }
 .backups h4 { margin: 0 0 .35rem; }
+/* Tasks: both filter rows wrap instead of scrolling sideways */
+.wrap-chips { flex-wrap: wrap; overflow-x: visible; padding-bottom: 0; margin-bottom: .5rem; }
