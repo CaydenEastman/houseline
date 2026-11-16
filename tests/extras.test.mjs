@@ -75,39 +75,61 @@ test("age tasks: bands, no duplicates, valid, profile field", () => {
   assert.throws(() => updateProfile(mkState(), { homeAge: "x" }), /Home age/);
 });
 
+import { resetTodayView } from "../src/views/today.js";
+import { quickForm } from "../src/quickform.js";
 function setup(state) {
   const doc = makeDocument(); const container = doc.createElement("div");
   const calls = { many: [], commits: [] };
   const ctx = { doc, h: (t, a, ...c) => rawH(doc, t, a, ...c), getState: () => state, today: () => T, openTaskForm() {}, completeTask() {},
     commit: (next, msg) => { calls.commits.push({ next, msg }); return true; }, markManyDone: (ids) => { calls.many.push(ids); return true; }, setView() {}, newId: idg() };
+  resetTodayView();
   today.render(container, ctx);
-  return { container, calls };
+  return { container, calls, ctx };
 }
 const btn = (c, f) => [...c.querySelectorAll("button")].find(f);
-test("Today: quick-add commits a parsed task; bad text shows error", () => {
-  const { container, calls } = setup(mkState());
-  const input = container.querySelector("#v-quick-input");
-  input.value = "clean gutters every 6 months"; input.dispatchEvent({ type: "input", bubbles: true, target: input, preventDefault() {} });
-  const form = container.querySelector("form");
-  form.dispatchEvent({ type: "submit", bubbles: false, target: form, preventDefault() {}, stopPropagation() {} });
+function quickSetup(state) {
+  const { ctx, calls } = setup(state);
+  const doc = ctx.doc; const container = doc.createElement("div");
+  container.append(quickForm(ctx));
+  const type = (text) => { const input = container.querySelector("#v-quick-input"); input.value = text; input.dispatchEvent({ type: "input", bubbles: true, target: input, preventDefault() {} }); };
+  const submit = () => { const form = container.querySelector("form"); form.dispatchEvent({ type: "submit", bubbles: false, target: form, preventDefault() {}, stopPropagation() {} }); };
+  return { container, calls, type, submit };
+}
+test("Quick add form: commits a parsed task; bad text shows error", () => {
+  const { calls, type, submit } = quickSetup(mkState());
+  type("clean gutters every 6 months"); submit();
   assert.equal(calls.commits.length, 1);
   assert.equal(calls.commits[0].next.tasks[0].title, "Clean gutters");
 });
-test("Today: quick-add without a schedule shows an error and commits nothing", () => {
-  const { container, calls } = setup(mkState());
-  const input = container.querySelector("#v-quick-input");
-  input.value = "clean gutters"; input.dispatchEvent({ type: "input", bubbles: true, target: input, preventDefault() {} });
-  const form = container.querySelector("form");
-  form.dispatchEvent({ type: "submit", bubbles: false, target: form, preventDefault() {}, stopPropagation() {} });
+test("Quick add form: without a schedule shows an error and commits nothing", () => {
+  const { container, calls, type, submit } = quickSetup(mkState());
+  type("clean gutters"); submit();
   assert.equal(calls.commits.length, 0);
   assert.ok(container.textContent.includes("Say how often"));
+});
+test("Quick add form: a duplicate title asks first, then adds on the second press", () => {
+  const { container, calls, type, submit } = quickSetup(mkState({ tasks: [mkTask({ id: "x", title: "Mow the lawn" })] }));
+  type("mow the lawn weekly"); submit();
+  assert.equal(calls.commits.length, 0);
+  assert.ok(container.textContent.includes("already have"));
+  submit();
+  assert.equal(calls.commits.length, 1);
 });
 test("Today: select tasks then mark them done together", () => {
   const s = mkState({ tasks: [mkTask({ id: "a", title: "A", lastDone: "2025-01-01", intervalDays: 30 }), mkTask({ id: "b", title: "B", lastDone: "2025-01-01", intervalDays: 30 })] });
   const { container, calls } = setup(s);
+  assert.equal(container.querySelectorAll(".v-sel-box").length, 0); // checkboxes only appear in Select mode
+  btn(container, (b) => b.textContent === "Select").click();
   btn(container, (b) => b.textContent === "Select all").click();
   btn(container, (b) => /^Mark 2 done today/.test(b.textContent)).click();
   assert.deepEqual(calls.many[0].sort(), ["a", "b"]);
+});
+test("Today: area chips filter the feed", () => {
+  const s = mkState({ tasks: [mkTask({ id: "a", title: "Gutters", category: "house", lastDone: "2025-01-01", intervalDays: 30 }), mkTask({ id: "b", title: "Mow", category: "yard", lastDone: "2025-01-01", intervalDays: 30 })] });
+  const { container } = setup(s);
+  assert.ok(container.textContent.includes("Gutters") && container.textContent.includes("Mow"));
+  btn(container, (b) => /Yard/.test(b.textContent)).click();
+  assert.ok(container.textContent.includes("Mow") && !container.textContent.includes("Gutters"));
 });
 
 import { estimateFor, runsPerYear, yearlyBudget, rangeText } from "../src/costs.js";

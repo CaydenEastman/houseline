@@ -52,21 +52,37 @@ test('wizard can be completed from stub DOM without throwing (Skip setup / Finis
   assert.ok(store.saved.length >= 1 && store.saved.at(-1).profile.setupDone === true);
   assert.ok(store.saved.at(-1).tasks.length > 10);
 });
-test('seeded state: all nine tabs render without view errors', async () => {
+test('seeded state: all nine screens render without view errors (five bottom buttons, tiles lead to the rest)', async () => {
   const doc = makeDocument();
   await mount(doc, { store: fakeStore(), state: seeded() });
   assert.equal(doc.getElementById('app').hidden, false); assert.equal(doc.getElementById('wizard').hidden, true);
-  const labels = doc.getElementById('nav').querySelectorAll('button').map((b) => b.textContent.replace(/[^\w ]/g, '').trim());
-  for (const l of ['Today', 'Tasks', 'History', 'Inventory', 'Vehicles', 'Vendors', 'Emergency', 'Calendar', 'Insights', 'More']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
-  const btns = doc.getElementById('nav').querySelectorAll('button');
-  assert.equal(btns.length, 10); // 4 main + More + 5 in the More list
-  for (const b of btns) {
-    b.click(); await sleep(5);
-    assert.equal(doc.body.querySelectorAll('.view-error').length, 0, 'view error in tab ' + b.textContent + ': ' + doc.body.querySelectorAll('.view-error').map((e) => e.textContent).join('|'));
-    assert.ok(doc.getElementById('main').textContent.length > 30);
-    const cur = doc.getElementById('nav').querySelectorAll('[aria-current]');
-    assert.equal(cur.length, 1);
+  const nav = () => doc.getElementById('nav');
+  const labels = nav().querySelectorAll('button').map((b) => b.textContent.replace(/[^\w ]/g, '').trim());
+  for (const l of ['Today', 'Calendar', 'Add', 'Home', 'You']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
+  assert.equal(nav().querySelectorAll('button').length, 5);
+  const noErrors = (what) => assert.equal(doc.body.querySelectorAll('.view-error').length, 0, 'view error in ' + what + ': ' + doc.body.querySelectorAll('.view-error').map((e) => e.textContent).join('|'));
+  for (const id of ['nav-today', 'nav-calendar', 'nav-home', 'nav-you']) {
+    nav().querySelector('#' + id).click(); await sleep(5);
+    noErrors(id); assert.ok(doc.getElementById('main').textContent.length > 30);
+    assert.equal(nav().querySelectorAll('[aria-current]').length, 1);
   }
+  // every screen behind the Home and You tiles
+  const seen = [];
+  for (const hub of ['nav-home', 'nav-you']) {
+    nav().querySelector('#' + hub).click(); await sleep(5);
+    const tiles = doc.getElementById('main').querySelectorAll('.hub-tile').map((t) => t.getAttribute('data-fk'));
+    for (const fk of tiles) {
+      nav().querySelector('#' + hub).click(); await sleep(5);
+      doc.getElementById('main').querySelectorAll('.hub-tile').find((t) => t.getAttribute('data-fk') === fk).click(); await sleep(5);
+      noErrors(fk); seen.push(fk);
+      if (fk !== 'hub-settings') {
+        assert.equal(nav().querySelectorAll('[aria-current]').length, 1); // the parent tab stays lit
+        assert.equal(doc.getElementById('backbar').hidden, false);
+        doc.getElementById('back-btn').click(); await sleep(5);
+      }
+    }
+  }
+  for (const fk of ['hub-tasks', 'hub-inventory', 'hub-vehicles', 'hub-vendors', 'hub-emergency', 'hub-history', 'hub-insights', 'hub-settings']) assert.ok(seen.includes(fk), fk);
 });
 test('seeded state with hostile strings: no script/img elements are ever created', async () => {
   const doc = makeDocument();

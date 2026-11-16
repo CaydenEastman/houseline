@@ -226,3 +226,84 @@ textarea.v-pre { border: 1.5px solid var(--muted); resize: vertical; }
 .v-recap { white-space: pre-wrap; font-size: .95rem; background: var(--surface-2); border-radius: 10px; padding: .6rem .8rem; }
 .v-log { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; font-size: .9rem; }
 .v-log li { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
+
+/* ---------- App shell v2: bottom bar with +, hubs, back bar, Today feed ---------- */
+#add-btn { display: none; } /* the + in the bottom bar replaces it */
+.nav-list li { flex: 1 1 0; min-width: 0; }
+.nav-add-li { display: grid; place-items: center; }
+.nav-btn.nav-add { width: auto; min-width: 3.6rem; min-height: 3.1rem; margin: .35rem 0; border: 0; border-radius: 999px; background: var(--brand); color: var(--brand-ink); flex-direction: column; padding: .2rem 1rem; }
+.nav-btn.nav-add .nav-icon { font-size: 1.5rem; font-weight: 700; }
+.nav-btn.nav-add:hover { filter: brightness(1.08); background: var(--brand); }
+.nav-btn.nav-add:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+@media (min-width: 40rem) {
+  .nav-list { justify-content: center; }
+  .nav-list li { flex: none; }
+  .nav-btn.nav-add { flex-direction: row; margin: 0; min-height: 2.75rem; padding: .4rem 1.1rem; }
+  .nav-btn.nav-add .nav-icon { font-size: 1.2rem; }
+}
+.nav-label { white-space: nowrap; }
+
+.backbar { display: flex; align-items: center; gap: .8rem; margin: 0 0 .8rem; }
+.backbar[hidden] { display: none; }
+.back-btn { font: inherit; font-weight: 700; min-height: 2.75rem; padding: .3rem .9rem .3rem .6rem; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--brand); cursor: pointer; }
+.back-btn:hover { background: var(--surface-2); }
+.back-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.back-title { font-weight: 800; font-size: 1.15rem; }
+
+.hub-grid { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .6rem; }
+.hub-tile { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .9rem; min-height: 4rem; padding: .8rem 1rem; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); }
+.hub-tile:hover { background: var(--surface-2); }
+.hub-tile:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.hub-icon { flex: none; font-size: 1.6rem; width: 2.4rem; text-align: center; }
+.hub-text { flex: 1; min-width: 0; display: grid; gap: .1rem; }
+.hub-text strong { font-size: 1.05rem; }
+.hub-text small { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.hub-chev { font-size: 1.5rem; color: var(--muted); }
+.add-grid { margin-bottom: .6rem; }
+.v-quick { display: grid; gap: .4rem; margin-bottom: .8rem; }
+
+/* Today feed */
+.tf { display: grid; gap: .8rem; }
+.tf-head { display: grid; gap: .6rem; }
+.tf-title { margin: 0; font-size: 1.35rem; line-height: 1.25; }
+.tf-score { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: .25rem .8rem; }
+.tf-score summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: .8rem; min-height: 3.25rem; }
+.tf-score summary::-webkit-details-marker { display: none; }
+.tf-score summary::after { content: "⌄"; margin-left: auto; color: var(--muted); font-size: 1.3rem; }
+.tf-score[open] summary::after { content: "⌃"; }
+.tf-score summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+.tf-ring { flex: none; display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; font-weight: 800; font-variant-numeric: tabular-nums;
+  border: 3px solid var(--ok); color: var(--ok); background: var(--ok-bg); }
+.v-score-ok .tf-ring { border-color: var(--soon); color: var(--soon); background: var(--soon-bg); }
+.v-score-needs-work .tf-ring { border-color: var(--overdue); color: var(--overdue); background: var(--overdue-bg); }
+.tf-score-text { display: grid; }
+.tf-score-text small { color: var(--muted); }
+.tf-score > :not(summary) { margin-bottom: .6rem; }
+.tf-bar { display: flex; align-items: center; gap: .5rem; }
+.tf-chips { flex: 1; margin: 0; padding-bottom: .2rem; }
+.tf-select { flex: none; }
+.tf-feed { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.tf-group { font-size: .78rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: .3rem; }
+.tf-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .3rem .8rem; padding: .9rem 1rem; background: var(--surface);
+  border: 1px solid var(--line); border-left: 5px solid var(--ok); border-radius: var(--radius); }
+.tf-card.v-st-overdue { border-left-color: var(--overdue); }
+.tf-card.v-st-due-soon { border-left-color: var(--soon); }
+.tf-icon { font-size: 1.5rem; }
+.tf-main { min-width: 0; }
+.tf-name { margin: 0; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.tf-due.v-st-overdue { color: var(--overdue); font-weight: 700; }
+.tf-actions { display: grid; justify-items: center; gap: .2rem; }
+.tf-done { min-width: 5rem; min-height: 2.75rem; }
+.tf-edit { all: unset; cursor: pointer; color: var(--muted); font-size: .85rem; text-decoration: underline; padding: .3rem .4rem; min-height: 1.5rem; }
+.tf-edit:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tf-card.tf-sel { grid-template-columns: auto auto 1fr; }
+
+/* Hub badges, calmer top banner */
+.hub-badge { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 .45rem; display: inline-grid; place-items: center; border-radius: 999px; font-size: .8rem; font-weight: 800; }
+.hub-badge-overdue { background: var(--overdue-bg); color: var(--overdue); border: 1.5px solid var(--overdue); }
+.hub-badge-soon { background: var(--soon-bg); color: var(--soon); border: 1.5px solid var(--soon); }
+.today-strip { padding: .5rem .9rem; margin-bottom: .6rem; box-shadow: none; }
+.today-strip .strip-top { margin-bottom: 0; }
+.today-strip .strip-list { margin-top: .5rem; }
+.strip-title { font-size: .95rem; font-weight: 700; color: var(--muted); }

@@ -20,6 +20,8 @@ import * as calendarView from "./views/calendar.js";
 import * as todayView from "./views/today.js";
 import * as insightsView from "./views/insights.js";
 import * as vendorsView from "./views/vendors.js";
+import { homeView, youView } from "./views/hubs.js";
+import { quickForm } from "./quickform.js";
 
 export { localToday };
 
@@ -37,7 +39,11 @@ const TABS = [
   { id: "emergency", label: emergencyView.label || "Emergency", icon: "\u{1F6DF}", view: emergencyView },
   { id: "calendar", label: calendarView.label || "Calendar", icon: "\u{1F4C5}", view: calendarView },
   { id: "insights", label: insightsView.label || "Insights", icon: "\u{1F4CA}", view: insightsView },
+  { id: "home", label: "Home", icon: "\u{1F3E0}", view: homeView },
+  { id: "you", label: "You", icon: "\u{1F464}", view: youView },
 ];
+// Screens reached from the Home and You tiles. The bottom bar keeps the parent lit and a back bar leads home.
+const PARENT = { tasks: "home", inventory: "home", vehicles: "home", vendors: "home", emergency: "home", history: "you", insights: "you" };
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const fmtN = (n) => Number(n).toLocaleString();
@@ -196,6 +202,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     doc, h, getState: () => state, commit, today: () => today, store, me, names,
     openTaskForm: (t) => openTaskForm(t || null), toast: (m) => void toast(m), photos, saveFile,
     newId,
+    openSettings: (trigger) => openSettings(trigger || null),
     markManyDone: (ids) => {
       let next = state, n = 0;
       for (const id of ids) {
@@ -302,67 +309,79 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   // ---------- Today banner ----------
   const SYNC_LABEL = { saved: "Saved", saving: "Saving…", error: "Not saved", offline: "Offline", local: "Local only" };
   function renderStrip() {
-    const sum = safe(() => summary(state, today), { overdue: 0, dueSoon: 0, ok: 0, snoozed: 0, byCategory: {} });
-    const dueToday = state.tasks.filter((t) => {
-      if (statusFor(t) === "snoozed") return false;
-      const i = infoFor(t);
-      return i.daysUntil === 0 && !(statusFor(t) === "overdue");
-    }).length;
     const warr = safe(() => warrantyAlerts(state, today), []);
     const ready = safe(() => readiness(state, today), null);
     const expiring = ready ? ready.expiring.length : 0;
     const expired = ready ? ready.expired.length : 0;
     const go = (tab, fn) => () => { if (fn) fn(); setView(tab, true); };
     const chip = (cls, text, onclick) => h("li", {}, h("button", { type: "button", class: `strip-chip ${cls}`, text, onclick }));
+    // Task counts live in the Today feed now. The banner only adds what the feed doesn't show: warranties and supplies.
     const items = [];
-    if (sum.overdue) items.push(chip("overdue", `${plural(sum.overdue, "task")} overdue`, go("tasks", () => { tv.status = "overdue"; tv.cat = "all"; tv.q = ""; })));
-    if (dueToday) items.push(chip("soon", `${dueToday} due today`, go("tasks", () => { tv.status = "all"; })));
-    if (warr.length) items.push(chip("soon", `${plural(warr.length, "warranty")} ending or ended`, go("inventory")));
-    if (expired) items.push(chip("overdue", `${plural(expired, "supply item")} expired`, go("emergency")));
-    if (expiring) items.push(chip("soon", `${plural(expiring, "supply item")} expiring soon`, go("emergency")));
-    if (!items.length) items.push(h("li", {}, h("span", { class: "strip-chip ok", text: "All caught up — nothing needs attention today." })));
+    if (active === "today") {
+      if (warr.length) items.push(chip("soon", `${plural(warr.length, "warranty")} ending or ended`, go("inventory")));
+      if (expired) items.push(chip("overdue", `${plural(expired, "supply item")} expired`, go("emergency")));
+      if (expiring) items.push(chip("soon", `${plural(expiring, "supply item")} expiring soon`, go("emergency")));
+    }
     const pillKind = store.mode === "local" && sync.kind === "saved" ? "local" : sync.kind;
     els.strip.replaceChildren(
       h("div", { class: "strip-top" },
         h("h2", { class: "strip-title", text: isoToLocalDate(today).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) }),
         h("span", { class: `pill sync-${pillKind}`, title: sync.message || "", text: SYNC_LABEL[pillKind] || "Saved" })),
-      h("ul", { class: "strip-list", "aria-label": "Needs attention" }, items));
+      items.length ? h("ul", { class: "strip-list", "aria-label": "Needs attention" }, items) : null);
   }
 
   // ---------- navigation ----------
-  const PRIMARY = ["today", "tasks", "calendar", "emergency"];
-  let moreOpen = false;
+  // Bottom bar: Today, Calendar, + (add anything), Home, You.
+  const NAV = ["today", "calendar", "add", "home", "you"];
   function renderNav() {
-    const primary = PRIMARY.map((id) => TABS.find((t) => t.id === id)).filter(Boolean);
-    const secondary = TABS.filter((t) => !PRIMARY.includes(t.id));
-    const inMore = secondary.some((t) => t.id === active);
-    const navBtn = (t, current) => h("li", {}, h("button", {
-      type: "button", class: "nav-btn", id: `nav-${t.id}`,
-      "aria-current": current ? "page" : null,
-      onclick: () => { setView(t.id, false); const b = doc.getElementById(`nav-${t.id}`); if (b && !b.closest("[hidden]")) b.focus(); else { const m = doc.getElementById("nav-more"); if (m) m.focus(); } },
-    }, h("span", { class: "nav-icon", "aria-hidden": "true", text: t.icon }), h("span", { class: "nav-label", text: t.label })));
-    const activeSecondary = secondary.find((t) => t.id === active);
-    const moreBtn = h("li", {}, h("button", {
-      type: "button", class: "nav-btn" + (inMore ? " nav-has-current" : ""), id: "nav-more",
-      "aria-expanded": String(moreOpen), "aria-controls": "nav-more-list",
-      "aria-current": inMore && !moreOpen ? "page" : null,
-      onclick: () => { moreOpen = !moreOpen; renderNav(); const m = doc.getElementById("nav-more"); if (m) m.focus(); },
-    }, h("span", { class: "nav-icon", "aria-hidden": "true", text: "⋯" }),
-    h("span", { class: "nav-label", text: activeSecondary ? `More: ${activeSecondary.label}` : "More" })));
-    els.nav.replaceChildren(
-      h("ul", { class: "nav-list" }, primary.map((t) => navBtn(t, active === t.id)), moreBtn),
-      h("ul", { class: "nav-list nav-more-list", id: "nav-more-list", hidden: moreOpen ? null : true, "aria-label": "More sections" },
-        secondary.map((t) => navBtn(t, moreOpen && active === t.id))));
+    const here = PARENT[active] || active;
+    const items = NAV.map((id) => {
+      if (id === "add") {
+        return h("li", { class: "nav-add-li" }, h("button", {
+          type: "button", class: "nav-btn nav-add", id: "nav-add", "aria-haspopup": "dialog", "aria-label": "Add something",
+          onclick: (e) => openAddSheet(e.currentTarget),
+        }, h("span", { class: "nav-icon", "aria-hidden": "true", text: "+" }), h("span", { class: "nav-label", text: "Add" })));
+      }
+      const t = TABS.find((x) => x.id === id);
+      return h("li", {}, h("button", {
+        type: "button", class: "nav-btn", id: `nav-${t.id}`, "aria-current": here === t.id ? "page" : null,
+        onclick: () => { setView(t.id, false); const b = doc.getElementById(`nav-${t.id}`); if (b) b.focus(); },
+      }, h("span", { class: "nav-icon", "aria-hidden": "true", text: t.icon }), h("span", { class: "nav-label", text: t.label })));
+    });
+    els.nav.replaceChildren(h("ul", { class: "nav-list" }, items));
   }
 
-  els.nav.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && moreOpen) { moreOpen = false; renderNav(); const m = doc.getElementById("nav-more"); if (m) m.focus(); }
-  });
+  // Shown above screens opened from Home or You: a clear way back.
+  function renderBack() {
+    const parent = PARENT[active];
+    if (!parent) { els.back.hidden = true; els.back.replaceChildren(); return; }
+    const pt = TABS.find((t) => t.id === parent), me2 = TABS.find((t) => t.id === active);
+    els.back.hidden = false;
+    els.back.replaceChildren(h("button", { type: "button", class: "back-btn", id: "back-btn", onclick: () => setView(parent, true), "aria-label": `Back to ${pt.label}` },
+      h("span", { "aria-hidden": "true", text: "‹ " }), pt.label), h("span", { class: "back-title", "aria-hidden": "true", text: me2.label }));
+  }
+
+  // The + sheet: type a task in plain words, or jump straight to adding something else.
+  function openAddSheet(trigger) {
+    const go2 = (id, then) => () => { closeDialog(els.confirm); setView(id, true); if (then) then(); };
+    const row = (icon, label, sub, onclick, fk) => h("li", {}, h("button", { type: "button", class: "hub-tile", "data-fk": fk, onclick },
+      h("span", { class: "hub-icon", "aria-hidden": "true", text: icon }), h("span", { class: "hub-text" }, h("strong", { text: label }), h("small", { text: sub })),
+      h("span", { class: "hub-chev", "aria-hidden": "true", text: "›" })));
+    openDialog(els.confirm, [
+      h("h2", { id: "confirm-dialog-title", text: "Add" }),
+      quickForm(ctx, { onAdded: () => closeDialog(els.confirm) }),
+      h("ul", { class: "hub-grid add-grid" },
+        row("\u{1F4DD}", "Task with details", "Pick dates, notes, links and who does it", () => { closeDialog(els.confirm); openTaskForm(null); }, "add-task"),
+        row("\u{1F697}", "Log mileage", "Update a vehicle's odometer", go2("vehicles"), "add-miles"),
+        row("\u{1F6DF}", "Emergency supply", "Water, food, batteries and more", go2("emergency"), "add-supply"),
+        row("\u{1F4E6}", "Home item", "Appliance, warranty or manual", go2("inventory"), "add-item")),
+      h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn", id: "add-close", text: "Close", onclick: () => closeDialog(els.confirm) })),
+    ], { trigger, focus: "#v-quick-input" });
+  }
 
   function setView(id, focusPanel) {
     if (!TABS.some((t) => t.id === id)) return;
     active = id;
-    moreOpen = false;
     render();
     if (focusPanel && panels[id]) { panels[id].root.setAttribute("tabindex", "-1"); panels[id].root.focus(); }
   }
@@ -814,12 +833,12 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   const markTourSeen = () => { try { doc.defaultView.localStorage.setItem(TOUR_KEY, "1"); } catch { /* shown again next visit */ } };
   const TOUR = [
     { icon: "\u{1F3E1}", title: "Today is your home base", lines: [
-      "The score shows how ready the house, cars and emergency supplies are.",
-      "Below it, see what's overdue or due this week. Tap Done, or tick several and mark them done together.",
-      "The ⋯ More tab holds History, Inventory, Vehicles, Vendors and Insights."] },
+      "The top line says what needs doing. Tap an area to filter, and Done when you've finished a task.",
+      "Tap the home score to see how ready the house, cars and emergency supplies are.",
+      "Home holds your tasks, inventory, vehicles, vendors and emergency plans. You holds history, insights and settings."] },
     { icon: "⚡", title: "Add things in seconds", lines: [
-      "Type in the Quick add box, like “clean gutters every 6 months” or “renew registration every January 15”.",
-      "For anything more detailed, use + Add task. You can also import a spreadsheet from Settings."] },
+      "Tap + and type, like “clean gutters every 6 months” or “renew registration every January 15”.",
+      "Need dates, notes or a person assigned? Pick “Task with details” in the same sheet. You can also import a spreadsheet from Settings."] },
     { icon: "\u{1F4C5}", title: "See it on the calendar", lines: [
       "The Calendar tab shows which days tasks, expiring supplies and warranties land on. Tap a day for details.",
       "Need more time? Move a task to a later day from that day's list.",
@@ -1025,7 +1044,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       } });
     } else {
       els.wizard.hidden = true; els.app.hidden = false;
-      renderStrip(); renderNav();
+      renderStrip(); renderNav(); renderBack();
       for (const t of TABS) {
         panels[t.id].root.hidden = t.id !== active;
         if (t.id === active) renderView(t);
@@ -1048,6 +1067,8 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   // ---------- init ----------
+  els.back = h("div", { class: "backbar", id: "backbar", hidden: true });
+  els.main.append(els.back);
   for (const t of TABS) {
     const root = h("section", { class: "view", id: `view-${t.id}`, "aria-labelledby": `h-${t.id}`, hidden: t.id !== active },
       h("h2", { class: "sr-only", id: `h-${t.id}`, text: t.label }));

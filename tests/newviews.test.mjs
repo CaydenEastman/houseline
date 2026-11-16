@@ -24,7 +24,7 @@ test("Today: score, overdue group with Done, fixes navigate", () => {
   const s = mkState({ tasks: [mkTask({ id: "a", title: "Fix gutters", lastDone: "2025-01-01", intervalDays: 30 })] });
   const { container, calls } = setup(today, s);
   assert.ok(container.textContent.includes("Home score"));
-  assert.ok(container.textContent.includes("Overdue (1)"));
+  assert.ok(container.textContent.includes("1 overdue"));
   btn(container, (b) => (b.getAttribute("aria-label") || "") === "Done: Fix gutters").click();
   assert.deepEqual(calls.done, ["a"]);
   btn(container, (b) => b.getAttribute("data-fk") === "v-fix-0").click();
