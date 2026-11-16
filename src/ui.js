@@ -22,6 +22,7 @@ import * as insightsView from "./views/insights.js";
 import * as vendorsView from "./views/vendors.js";
 import { homeView, youView } from "./views/hubs.js";
 import { quickForm } from "./quickform.js";
+import * as pwa from "./pwa.js";
 
 export { localToday };
 
@@ -973,6 +974,10 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", id: "s-csv-go", text: "Import pasted CSV", onclick: () => doCSV(csvBox.value) })),
         csvOut),
       h("section", { class: "set-sec" },
+        h("h3", { text: "Reminders" }),
+        remindersPanel(),
+      ),
+      h("section", { class: "set-sec" },
         h("h3", { text: "Recent changes" }),
         h("p", { class: "hint", text: "Kept on this device. Restoring puts your data back the way it was just before that change, and you can undo the restore." }),
         changeLog()),
@@ -991,6 +996,31 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", text: "Import pasted text", onclick: () => { if (!paste.value.trim()) { toast("Paste some backup text first.", { error: true }); paste.focus(); return; } doImport(paste.value, "pasted text"); } }))),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
     ], { trigger, focus: "#s-rerun" });
+  }
+
+  function remindersPanel() {
+    const ls = doc.defaultView && doc.defaultView.localStorage;
+    const wrap = h("div", { class: "reminders" });
+    const paint = () => {
+      const on = !!ls && pwa.remindersOn(ls);
+      const msg = !pwa.supported()
+        ? "Phone reminders aren't available in this browser. Add the app to your Home Screen from a regular browser to use them."
+        : on ? "On. You'll get one notification a day when something is overdue or due, the next time you open the app."
+        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day.";
+      const btn = h("button", { type: "button", class: "btn", id: "s-remind", text: on ? "Turn off reminders" : "Turn on reminders", disabled: !pwa.supported() });
+      btn.addEventListener("click", async () => {
+        if (on) { pwa.disableReminders(ls); toast("Reminders turned off."); paint(); return; }
+        const r = await pwa.enableReminders(ls);
+        if (r.ok) toast("Reminders turned on.");
+        else toast(r.why === "denied" ? "Notifications are blocked. Allow them in your browser settings, then try again." : "Reminders aren't available here.", { error: true });
+        paint();
+      });
+      const kids = [h("p", { class: "hint", text: msg }), btn];
+      if (!pwa.isStandalone()) kids.push(h("p", { class: "hint", text: "Tip: in your browser menu choose \"Add to Home Screen\" (or \"Install app\") so it opens like a normal app." }));
+      wrap.replaceChildren(...kids);
+    };
+    paint();
+    return wrap;
   }
 
   function startRerun() {

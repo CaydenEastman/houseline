@@ -1,6 +1,7 @@
 import { createStore } from "./sync.js";
 import { freshState } from "./storage.js";
-import { mount } from "./ui.js";
+import { mount, localToday } from "./ui.js";
+import { initPwa } from "./pwa.js";
 
 /** localStorage if usable, otherwise an in-memory stand-in (private mode, blocked storage). */
 function getLocalStorage() {
@@ -54,6 +55,7 @@ async function start() {
   const flush = () => { try { const p = store && store.flush && store.flush(); if (p && p.catch) p.catch(() => {}); } catch { /* ignore */ } };
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   window.addEventListener("pagehide", flush);
+  initPwa({ ls: localStorage, getState: () => store.load(), getToday: localToday });
 }
 
 start().catch((e) => {
