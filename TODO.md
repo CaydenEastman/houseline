@@ -22,11 +22,11 @@ The app itself works. What follows is the infrastructure around it: where data l
 - [x] Instant updates over Supabase Realtime (polling stays as a slow fallback).
 - [ ] Delete a household's photos and docs when its last member is removed.
 
-## 2. Accounts and sign-in (built; Google needs one-time setup)
+## 2. Accounts and sign-in (built, including Google)
 
 - [x] Sign in with an emailed link, and sign out, in **You, Account**. Uses Supabase Auth; no passwords stored by us.
 - [x] First sign-in merges what is already on the phone into the account instead of discarding it; a different account on the same phone never inherits the previous account's data.
-- [ ] **You:** turn on Google sign-in (steps in `supabase/SETUP.md`). Apple sign-in needs the $99/yr developer account and is only required if you ship an iPhone store app with Google sign-in.
+- [x] Google sign-in turned on and tested (steps in `supabase/SETUP.md`). Apple sign-in needs the $99/yr developer account and is only required if you ship an iPhone store app with Google sign-in.
 - [ ] Own email sender (SMTP) once more than a few people use it.
 - [ ] Delete account and "download all my data" buttons (export backup already exists).
 
@@ -42,11 +42,11 @@ Today: one notification a day, only when the app is opened.
 
 - [x] Web Push: signing keys are generated inside the database (private key never leaves it); Settings, Reminders subscribes the phone and saves it (`src/push.js`, table `push_subscriptions`).
 - [x] Hourly pg_cron job calls the `send-reminders` Edge Function, which sends one push per phone at its chosen local hour (time zone stored per phone). Its due-date code is a copy in `supabase/functions/send-reminders/due.js`; update it if due-date rules in `src/logic.js` change.
-- [ ] **You:** on your phone, open the installed app, Settings, Reminders, pick a time and turn them on. Use the test steps in `supabase/SETUP.md`.
-- [ ] iPhone only delivers web push to apps added to the Home Screen (iOS 16.4+). Keep the install tip visible.
+- [x] Tested on a real phone: morning reminders turn on and arrive.
+- [x] iPhone only delivers web push to apps added to the Home Screen (iOS 16.4+); the install tip is shown in Settings, Reminders.
 - [ ] Optional email digest (Resend or Postmark) for people who do not install, and as a fallback.
 - [ ] Optional SMS later (Twilio); costs money per message.
-- [ ] Notification settings: pick the hour, quiet days, what counts as "due soon".
+- [x] Pick the hour (done). Still to do:  quiet days, what counts as "due soon".
 
 ## 5. A running server (only if needed)
 
