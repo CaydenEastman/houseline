@@ -65,7 +65,7 @@ function build(ctx, rerender) {
   const canSelect = rows.length > 1 && typeof ctx.markManyDone === "function";
   const nSel = S.sel.size;
   const selectToggle = canSelect ? h("button", { type: "button", class: "btn subtle v-small tf-select", "data-fk": "tf-select",
-    text: S.selecting ? "Cancel" : "Select", onclick: () => { S.selecting = !S.selecting; S.sel.clear(); S.pending = "tf-select"; rerender(); } }) : null;
+    text: S.selecting ? "Cancel" : "Mark several done", onclick: () => { S.selecting = !S.selecting; S.sel.clear(); S.pending = "tf-select"; rerender(); } }) : null;
   const bulkBar = S.selecting && canSelect ? h("div", { class: "v-bulk", role: "group", "aria-label": "Mark several done" },
     h("button", { type: "button", class: "btn v-small", "data-fk": "v-sel-all", text: nSel === rows.length ? "Clear selection" : "Select all",
       onclick: () => { if (nSel === rows.length) S.sel.clear(); else rows.forEach((r) => S.sel.add(r.task.id)); S.pending = "v-sel-all"; rerender(); } }),
@@ -112,7 +112,7 @@ function build(ctx, rerender) {
 
   return h("section", { class: "v-view tf", "aria-labelledby": "v-today-h" },
     h("h2", { id: "v-today-h", class: "sr-only", text: "Today" }),
-    head, h("div", { class: "tf-bar" }, chips, selectToggle), bulkBar, list, flagCard, nudgeCard);
+    head, chips, ...(selectToggle ? [h("div", { class: "tf-selectrow" }, selectToggle)] : []), bulkBar, list, flagCard, nudgeCard);
 }
 
 export default { id, label, render };

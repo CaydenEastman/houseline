@@ -119,7 +119,7 @@ test("Today: select tasks then mark them done together", () => {
   const s = mkState({ tasks: [mkTask({ id: "a", title: "A", lastDone: "2025-01-01", intervalDays: 30 }), mkTask({ id: "b", title: "B", lastDone: "2025-01-01", intervalDays: 30 })] });
   const { container, calls } = setup(s);
   assert.equal(container.querySelectorAll(".v-sel-box").length, 0); // checkboxes only appear in Select mode
-  btn(container, (b) => b.textContent === "Select").click();
+  btn(container, (b) => b.textContent === "Mark several done").click();
   btn(container, (b) => b.textContent === "Select all").click();
   btn(container, (b) => /^Mark 2 done today/.test(b.textContent)).click();
   assert.deepEqual(calls.many[0].sort(), ["a", "b"]);

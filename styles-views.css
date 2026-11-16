@@ -339,3 +339,7 @@ dialog *, .add-grid > * { min-width: 0; }
 .member-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; overflow-wrap: anywhere; }
 .btn.small { padding: .2rem .55rem; min-height: 0; font-size: .85rem; }
 .invite-code { font: 700 1.6rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; text-align: center; padding: .6rem; margin: .4rem 0; border: 2px dashed currentColor; border-radius: .6rem; user-select: all; }
+
+/* Today: filter chips wrap onto a second row instead of scrolling sideways; "Mark several done" sits on its own line above the list */
+.tf-chips { flex-wrap: wrap; overflow-x: visible; padding-bottom: 0; margin-bottom: .6rem; }
+.tf-selectrow { display: flex; justify-content: flex-end; margin: 0 0 .6rem; }
