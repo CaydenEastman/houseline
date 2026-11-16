@@ -206,6 +206,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     openTaskForm: (t) => openTaskForm(t || null), toast: (m) => void toast(m), photos, saveFile,
     newId,
     openSettings: (trigger) => openSettings(trigger || null),
+    openAccount: (trigger) => openAccount(trigger || null),
     account: () => { const a = authOf(); if (!a) return null; const s = a.session(); return { signedIn: !!s, email: s && s.user ? s.user.email : null }; },
     markManyDone: (ids) => {
       let next = state, n = 0;
@@ -975,7 +976,6 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", text: "Choose CSV file", onclick: () => csvFile.click() }), csvFile,
           h("button", { type: "button", class: "btn", id: "s-csv-go", text: "Import pasted CSV", onclick: () => doCSV(csvBox.value) })),
         csvOut),
-      ...(authOf() ? [h("section", { class: "set-sec" }, h("h3", { text: "Account" }), accountPanel())] : []),
       h("section", { class: "set-sec" },
         h("h3", { text: "Reminders" }),
         remindersPanel(),
@@ -999,6 +999,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", text: "Import pasted text", onclick: () => { if (!paste.value.trim()) { toast("Paste some backup text first.", { error: true }); paste.focus(); return; } doImport(paste.value, "pasted text"); } }))),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
     ], { trigger, focus: "#s-rerun" });
+  }
+
+  function openAccount(trigger) {
+    openDialog(els.settings, [
+      h("h2", { id: "settings-dialog-title", text: "Account" }),
+      accountPanel(),
+      h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
+    ], { trigger, focus: "#s-email, #s-signout" });
   }
 
   function remindersPanel() {
@@ -1048,7 +1056,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const msg = !pwa.supported()
         ? "Phone reminders aren't available in this browser. Add the app to your Home Screen from a regular browser to use them."
         : on ? "On. You'll get one notification a day when something is overdue or due, the next time you open the app."
-        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day." + (push && auth && !auth.session() ? " Sign in (Account, above) to get it every morning even when the app is closed." : "");
+        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day." + (push && auth && !auth.session() ? " Sign in (You, Account) to get it every morning even when the app is closed." : "");
       const btn = h("button", { type: "button", class: "btn", id: "s-remind", text: on ? "Turn off reminders" : "Turn on reminders", disabled: !pwa.supported() });
       btn.addEventListener("click", async () => {
         if (on) { pwa.disableReminders(ls); toast("Reminders turned off."); paint(); return; }

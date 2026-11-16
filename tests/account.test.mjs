@@ -108,3 +108,19 @@ test("signed in with push available: Settings offers a morning time and turns se
   delete globalThis.Notification;
   if (hadWindow) globalThis.window = prevWindow; else delete globalThis.window;
 });
+
+test("Account and Settings are different screens: sign-in lives only in Account, backup and import only in Settings", async () => {
+  const { doc } = await open(fakeAuth());
+  tile(doc, "hub-account").click(); await sleep(5);
+  let dlg = doc.getElementById("settings-dialog");
+  assert.ok(dlg.textContent.includes("Email me a sign-in link"));
+  assert.equal(dlg.textContent.includes("Export backup"), false);
+  assert.equal(dlg.textContent.includes("Re-run setup"), false);
+  dlg.querySelector(".dialog-actions button").click(); await sleep(5);
+  tile(doc, "hub-settings").click(); await sleep(5);
+  dlg = doc.getElementById("settings-dialog");
+  assert.ok(dlg.textContent.includes("Export backup"));
+  assert.ok(dlg.textContent.includes("Reminders"));
+  assert.equal(dlg.textContent.includes("Email me a sign-in link"), false);
+  assert.equal(dlg.textContent.includes("Continue with Google"), false);
+});
