@@ -27,7 +27,7 @@ test('at least 55 templates, valid shapes by kind', () => {
       assert.equal(req(t).vehicle, true, t.title + ' mileage needs requires.vehicle');
       if (t.intervalDays != null) assert.ok(Number.isInteger(t.intervalDays) && t.intervalDays >= 1);
     }
-    if (t.requires) for (const k of Object.keys(t.requires)) assert.ok(['homeType', 'hasYard', 'hasPool', 'hasTrailer', 'hasPets', 'vehicle'].includes(k), `${t.title}: unknown requires ${k}`);
+    if (t.requires) for (const k of Object.keys(t.requires)) assert.ok(['homeType', 'hasYard', 'hasPool', 'hasTrailer', 'hasPets', 'vehicle', 'rents', 'system', 'systemLegacy'].includes(k), `${t.title}: unknown requires ${k}`);
     if (req(t).homeType) assert.ok(req(t).homeType.every((h) => ['house', 'condo', 'apartment'].includes(h)));
   }
 });

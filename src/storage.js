@@ -1,7 +1,7 @@
 // Persistence helpers. `storage` is any localStorage-like object (getItem/setItem).
 import { CATEGORIES } from "./templates.js";
 import {
-  isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES, CLIMATE_TYPES, HOME_AGE_TYPES,
+  isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES, CLIMATE_TYPES, HOME_AGE_TYPES, SYSTEM_TYPES,
   MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG, MAX_COST, VEHICLE_SPECS,
   PEOPLE_MAX, PERSON_KINDS, BLOOD_TYPES, PERSON_TEXT, PERSON_LIMIT,
 } from "./logic.js";
@@ -51,6 +51,8 @@ export function validateState(s) {
   for (const k of ["hasYard", "hasPool", "hasTrailer", "hasPets"]) need(typeof pr[k] === "boolean", `profile.${k} must be a boolean`);
   need(isInt(pr.householdSize, 1, 20), "profile.householdSize must be a whole number from 1 to 20");
   need(pr.homeAge === undefined || HOME_AGE_TYPES.includes(pr.homeAge), "profile.homeAge must be new, mid or old");
+  need(pr.rents === undefined || typeof pr.rents === "boolean", "profile.rents must be true or false");
+  need(pr.systems === undefined || (Array.isArray(pr.systems) && pr.systems.length <= SYSTEM_TYPES.length && pr.systems.every((x) => SYSTEM_TYPES.includes(x))), "profile.systems must be a list of known home features");
   need(pr.climate === undefined || CLIMATE_TYPES.includes(pr.climate), "profile.climate must be cold, mild or hot");
 
   for (const k of ["vehicles", "items", "supplies", "tasks", "completions"]) {

@@ -8,6 +8,12 @@ const YARD = { homeType: ["house"], hasYard: true };
 const POOL = { homeType: ["house"], hasPool: true };
 const CAR = { vehicle: true };
 const MULTI = { homeType: ["condo", "apartment"] };
+// Feature-gated tasks. `legacy` = also applies when the profile predates the features question (profile.systems undefined).
+const SYS = (system, legacy = false, house = false) => ({ ...(house ? { homeType: ["house"] } : {}), system, ...(legacy ? { systemLegacy: true } : {}) });
+const RENTER_HOUSE = { rents: true, homeType: ["house"] };
+const RENTER = { rents: true };
+// Tasks a landlord normally handles. Skipped for renters.
+const OWNER_ONLY = new Set(["Inspect roof and attic", "Flush water heater", "Clean gutters (fall)", "Clean gutters (spring)", "Furnace service", "AC service", "Chimney and fireplace inspection", "Check caulk and weatherstripping", "Test main water shutoff valve"]);
 
 const tag = (...a) => a;
 
@@ -59,7 +65,7 @@ export const TEMPLATES = [
   iv("house", "Inspect roof and attic", 365, "Look for missing shingles, leaks, and pests.", tag("roof", "exterior"), HOUSE),
   iv("house", "Run garbage disposal and clean drains", 90, "Flush drains with hot water; avoid harsh chemicals.", tag("plumbing")),
   iv("house", "Clean dishwasher filter", 90, "Remove and rinse the filter; run a cleaning cycle.", tag("appliance")),
-  iv("house", "Test garage door auto-reverse", 180, "Place a board in the path; the door must reverse.", tag("safety", "garage"), HOUSE),
+  iv("house", "Test garage door auto-reverse", 180, "Place a board in the path; the door must reverse.", tag("safety", "garage"), SYS("garage", true, true)),
   an("house", "Replace smoke detector batteries (fall)", 11, 1, "Swap batteries when the clocks change.", tag("safety", "smoke")),
   an("house", "Replace smoke detector batteries (spring)", 3, 10, "Swap batteries when the clocks change.", tag("safety", "smoke")),
   an("house", "Furnace service", 9, 15, "Annual inspection before heating season.", tag("hvac", "heating")),
@@ -67,11 +73,27 @@ export const TEMPLATES = [
   an("house", "Clean gutters (fall)", 11, 1, "After leaves drop; check downspouts drain away from the house.", tag("gutters", "exterior"), HOUSE),
   an("house", "Clean gutters (spring)", 4, 15, "Clear debris; check for sagging or leaks.", tag("gutters", "exterior"), HOUSE),
   an("house", "Disconnect hoses and shut off hose bibs", 10, 20, "Drain outdoor faucets before the first freeze.", tag("plumbing", "winter"), HOUSE),
-  an("house", "Chimney and fireplace inspection", 9, 1, "Sweep and inspect before the burning season.", tag("chimney", "heating"), HOUSE),
+  an("house", "Chimney and fireplace inspection", 9, 1, "Sweep and inspect before the burning season.", tag("chimney", "heating"), SYS("fireplace", true, true)),
   an("house", "Check caulk and weatherstripping", 10, 1, "Seal gaps around windows and doors before winter.", tag("exterior", "winter"), HOUSE),
   an("house", "Test main water shutoff valve", 6, 1, "Turn it off and on so it doesn't seize.", tag("plumbing")),
   iv("house", "Inspect appliance hoses and under-sink plumbing", 180, "Look for drips, bulges, or corrosion at washer, dishwasher, and sinks.", tag("plumbing", "leaks"), MULTI),
   an("house", "Review renter's or HO6 insurance", 1, 15, "Confirm coverage and update your belongings list.", tag("insurance"), MULTI),
+
+  // ---- Renters ----
+  an("house", "Review renter's insurance", 1, 15, "Confirm coverage and update your belongings list.", tag("insurance"), RENTER_HOUSE),
+  an("house", "Photograph your home and belongings", 3, 1, "A dated photo set protects your deposit and helps an insurance claim.", tag("insurance", "renter"), RENTER),
+
+  // ---- Home features (chosen in setup) ----
+  iv("house", "Lubricate garage door and rollers", 365, "Silicone or lithium spray on rollers, hinges and springs. Never grease the tracks.", tag("garage"), SYS("garage", false, true)),
+  iv("house", "Check basement or crawlspace for moisture", 180, "Look for dampness, musty smells, pests and standing water.", tag("basement", "leaks"), SYS("basement")),
+  iv("house", "Test sump pump", 180, "Pour a bucket of water in the pit and confirm it runs and drains.", tag("sump", "plumbing"), SYS("sump")),
+  iv("house", "Check septic tank and drain field", 365, "Look for soggy spots or odors; keep records of service.", tag("septic", "plumbing"), SYS("septic")),
+  iv("house", "Pump septic tank", 1095, "Typically every 3 to 5 years depending on tank size and household.", tag("septic", "plumbing"), SYS("septic")),
+  an("house", "Test well water", 4, 1, "Test for bacteria and nitrates yearly.", tag("well", "plumbing"), SYS("well")),
+  iv("house", "Check well pump and pressure tank", 365, "Listen for short cycling; check pressure and tank condition.", tag("well", "plumbing"), SYS("well")),
+  iv("house", "Check solar panels and inverter", 365, "Clear debris, check output in the app and look for error lights.", tag("solar", "electrical"), SYS("solar")),
+  iv("house", "Inspect EV charger and cable", 180, "Check the cable, connector and mounting for wear or damage.", tag("ev", "electrical"), SYS("ev")),
+  an("emergency", "Service generator (oil, filter, fuel)", 9, 1, "Change oil and filter and replace stale fuel before storm and heating season.", tag("power"), SYS("generator")),
 
   // ---- Pets ----
   an("house", "Vet checkup and vaccinations", 5, 15, "Schedule the annual exam; keep records handy.", tag("pets"), { hasPets: true }),
@@ -103,7 +125,7 @@ export const TEMPLATES = [
   iv("emergency", "Restock first aid kit", 180, "Replace expired medications and used supplies.", tag("medical")),
   iv("emergency", "Review family emergency plan", 365, "Meeting places, contacts, evacuation routes.", tag("plan")),
   iv("emergency", "Check go-bags", 180, "Update clothing sizes, documents, cash, and medications.", tag("go-bag")),
-  iv("emergency", "Test generator or backup power", 90, "Run under load; keep fuel fresh.", tag("power")),
+  iv("emergency", "Test generator or backup power", 90, "Run under load; keep fuel fresh.", tag("power"), SYS("generator", true)),
   iv("emergency", "Practice fire escape drill", 180, "Rehearse two exits from every bedroom.", tag("safety", "plan")),
   iv("emergency", "Check fire extinguisher readiness", 365, "Keep one in the kitchen and one in the garage.", tag("safety")),
   iv("emergency", "Refresh vehicle emergency kit", 180, "Blanket, jumper cables, flares, water, snacks.", tag("car")),
@@ -168,7 +190,13 @@ function holds(tpl, p) {
   const homeType = p.homeType ?? "house";
   const hasYard = p.hasYard ?? true;
   if (tpl.category === "yard" && !hasYard) return false;
+  if (p.rents && OWNER_ONLY.has(tpl.title)) return false;
   if (!r) return true;
+  if (r.rents && !p.rents) return false;
+  if (r.system) {
+    const have = Array.isArray(p.systems) ? p.systems.includes(r.system) : !!r.systemLegacy;
+    if (!have) return false;
+  }
   if (r.homeType && !r.homeType.includes(homeType)) return false;
   if (r.hasYard != null && r.hasYard !== !!hasYard) return false;
   if (r.hasPool != null && r.hasPool !== !!p.hasPool) return false;

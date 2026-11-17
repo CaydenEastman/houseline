@@ -1,13 +1,41 @@
 // First-run setup wizard (also used by Settings > Re-run setup).
 // renderWizard is idempotent: step state lives in module scope, so a shell re-render keeps your place.
 import { fmtNum } from "./dom.js";
-import { seedFromProfile } from "./templates.js";
-import { addVehicle } from "./logic.js";
+import { seedFromProfile, ageTasks, HOME_AGE_LABEL } from "./templates.js";
+import { addVehicle, addTask, addDays, HOME_AGE_TYPES, SYSTEM_TYPES } from "./logic.js";
 
 const HOME_TYPES = [
   ["house", "House", "Yard, gutters, roof and all"],
   ["condo", "Condo / townhome", "Shared exterior, no gutters or yard tasks"],
   ["apartment", "Apartment", "Indoor tasks, safety and car"],
+];
+const OWN = [
+  ["own", "I own it", "Includes roof, heating, water heater and exterior upkeep"],
+  ["rent", "I rent it", "Skips what a landlord handles; adds renter's insurance and a photo record"],
+];
+const CLIMATES = [["cold", "Cold winters"], ["mild", "Mild year-round"], ["hot", "Hot summers"]];
+const SYSTEM_LABEL = {
+  fireplace: ["Fireplace or wood stove", "Annual chimney inspection"],
+  garage: ["Garage door opener", "Auto-reverse test and lubrication"],
+  basement: ["Basement or crawlspace", "Moisture checks"],
+  sump: ["Sump pump", "Twice-a-year test"],
+  septic: ["Septic system", "Pumping and drain field checks"],
+  well: ["Private well", "Water testing and pressure tank"],
+  solar: ["Solar panels", "Panel and inverter check"],
+  ev: ["EV charger", "Cable and connector inspection"],
+  generator: ["Backup generator", "Run tests and yearly service"],
+};
+// "When did you last do this?" shortcut on the Review step. Not sure keeps the normal spread-out first due date.
+export const LAST_CHOICES = [
+  ["", "Not sure"],
+  ["recent", "In the past month"],
+  ["months", "A few months ago"],
+  ["year", "A year or more ago"],
+];
+const LAST_DAYS = { recent: 20, months: 120, year: 400 };
+export const LAST_TITLES = [
+  "Replace HVAC filter", "Test smoke and CO detectors", "Flush water heater", "Clean dryer vent",
+  "Test GFCI outlets", "Check fire extinguishers", "Clean refrigerator coils", "Inspect roof and attic",
 ];
 const CAT_LABEL = { car: "Car", house: "House", yard: "Yard", emergency: "Emergency" };
 
@@ -28,8 +56,13 @@ export function resetWizard(state, rerun = false) {
       hasTrailer: !!p.hasTrailer,
       hasPets: !!p.hasPets,
       householdSize: Number.isInteger(p.householdSize) ? p.householdSize : 2,
+      rents: !!p.rents,
+      climate: ["cold", "mild", "hot"].includes(p.climate) ? p.climate : "cold",
+      homeAge: HOME_AGE_TYPES.includes(p.homeAge) ? p.homeAge : null,
+      systems: Array.isArray(p.systems) ? p.systems.filter((x) => SYSTEM_TYPES.includes(x)) : [],
     },
     newVehicles: [],
+    last: {},
     error: "",
   };
   return W;
@@ -52,11 +85,31 @@ function buildResult(ctx, { skip = false } = {}) {
   const today = ctx.today();
   let s = ctx.getState();
   if (!skip) {
-    s = { ...s, profile: { ...s.profile, ...W.profile } };
+    const { homeAge, ...rest } = W.profile;
+    s = { ...s, profile: { ...s.profile, ...rest, ...(homeAge ? { homeAge } : {}) } };
     for (const v of W.newVehicles) s = addVehicle(s, { name: v.name, odometer: v.odometer }, newId, today);
   }
   s = { ...s, profile: { ...s.profile, setupDone: true } };
   const res = addMissingTasks(s, today);
+  if (!skip && !W.rerun && s.profile.homeAge && !s.profile.rents) {
+    // Older homes get a few extra inspections, same as Settings > "Add suggested tasks for my home's age".
+    for (const t of ageTasks(s.profile.homeAge, res.state.tasks.map((x) => x.title), today)) {
+      const before = res.state.tasks.length;
+      const next = addTask(res.state, t, newId);
+      if (next.tasks.length > before) { res.added.push(next.tasks[next.tasks.length - 1]); res.state = next; }
+    }
+  }
+  if (!skip) {
+    // Known history: counting from the date they did it means a task they skipped for a year starts overdue, which is accurate.
+    const mark = (t) => {
+      const days = LAST_DAYS[W.last[t.title]];
+      return days && (t.kind || "interval") === "interval" ? { ...t, lastDone: addDays(today, -days) } : t;
+    };
+    const added = res.added.map(mark);
+    const byId = new Map(added.map((t) => [t.id, t]));
+    res.state = { ...res.state, tasks: res.state.tasks.map((t) => byId.get(t.id) || t) };
+    res.added = added;
+  }
   if (skip || !W.newVehicles.length) return res;
   // A car added here has no service history yet. Count each mileage reminder from the last oil change if they know it,
   // otherwise from today's odometer, so a brand-new car does not open with "oil change overdue".
@@ -76,7 +129,7 @@ function buildResult(ctx, { skip = false } = {}) {
 export function renderWizard(container, ctx, opts = {}) {
   if (!W) resetWizard(ctx.getState(), opts.rerun);
   const { h } = ctx;
-  const steps = ["Your home", "Vehicles", "Review"];
+  const steps = ["Your home", "What\u2019s in it", "Vehicles", "Review"];
 
   const go = (n) => { W.step = n; W.error = ""; W.draft = null; draw(true); };
   const fail = (msg, field) => { W.error = msg; draw(false); if (field) { const el = container.querySelector(field); if (el) el.focus(); } };
@@ -94,7 +147,7 @@ export function renderWizard(container, ctx, opts = {}) {
 
   function cancel() { W = null; if (opts.onClose) opts.onClose(); }
 
-  function readStep0() {
+  function readStep1() {
     const size = Number(container.querySelector("#w-size").value);
     if (!Number.isInteger(size) || size < 1 || size > 20) {
       fail("Household size must be a whole number from 1 to 20.", "#w-size"); return false;
@@ -135,22 +188,49 @@ export function renderWizard(container, ctx, opts = {}) {
 
   function stepHome() {
     const p = W.profile;
-    const check = (key, label, hint) => h("label", { class: "check" },
-      h("input", { type: "checkbox", checked: p[key], onchange: (e) => { p[key] = e.target.checked; } }),
-      h("span", {}, h("strong", { text: label }), hint ? h("small", { text: hint }) : null));
+    const ownVal = p.rents ? "rent" : "own";
     return h("div", {},
       h("fieldset", { class: "choice-group" },
         h("legend", { text: "What kind of home?" }),
         HOME_TYPES.map(([val, label, hint]) => h("label", { class: "choice" },
           h("input", { type: "radio", name: "w-home", value: val, checked: p.homeType === val,
-            onchange: () => { p.homeType = val; if (val !== "house") p.hasYard = false; else p.hasYard = true; draw(false); } }),
+            onchange: () => { p.homeType = val; p.hasYard = val === "house"; draw(false); } }),
           h("span", {}, h("strong", { text: label }), h("small", { text: hint }))))),
       h("fieldset", { class: "choice-group" },
+        h("legend", { text: "Do you own or rent?" }),
+        OWN.map(([val, label, hint]) => h("label", { class: "choice" },
+          h("input", { type: "radio", name: "w-own", value: val, checked: ownVal === val,
+            onchange: () => { p.rents = val === "rent"; draw(false); } }),
+          h("span", {}, h("strong", { text: label }), h("small", { text: hint }))))),
+      h("div", { class: "field" },
+        h("label", { for: "w-climate", text: "Climate (for seasonal reminders)" }),
+        h("select", { id: "w-climate", onchange: (e) => { p.climate = e.target.value; } },
+          CLIMATES.map(([v, t]) => h("option", { value: v, text: t, selected: p.climate === v })))),
+      p.rents ? null : h("div", { class: "field" },
+        h("label", { for: "w-age", text: "How old is your home?" }),
+        h("select", { id: "w-age", onchange: (e) => { p.homeAge = e.target.value || null; } },
+          h("option", { value: "", text: "Not sure / skip", selected: !p.homeAge }),
+          HOME_AGE_TYPES.map((v) => h("option", { value: v, text: HOME_AGE_LABEL[v], selected: p.homeAge === v }))),
+        h("p", { class: "hint", text: "Older homes get a few extra inspections, like wiring, sewer line and radon." })));
+  }
+
+  function stepFeatures() {
+    const p = W.profile;
+    const check = (checked, onchange, label, hint) => h("label", { class: "check" },
+      h("input", { type: "checkbox", checked, onchange: (e) => onchange(e.target.checked) }),
+      h("span", {}, h("strong", { text: label }), hint ? h("small", { text: hint }) : null));
+    const flag = (key, label, hint) => check(p[key], (v) => { p[key] = v; }, label, hint);
+    return h("div", {},
+      h("fieldset", { class: "choice-group" },
         h("legend", { text: "Which of these apply?" }),
-        check("hasYard", "A yard or lawn", "Mowing, sprinklers, seasonal yard work"),
-        check("hasPool", "A pool or hot tub", "Water testing, filters, covers"),
-        check("hasTrailer", "A trailer, boat or RV", "Tires, bearings, lights, registration"),
-        check("hasPets", "Pets", "Vet visits, vaccines, supplies")),
+        p.homeType === "house" ? flag("hasYard", "A yard or lawn", "Mowing, sprinklers, seasonal yard work") : null,
+        flag("hasPool", "A pool or hot tub", "Water testing, filters, covers"),
+        flag("hasTrailer", "A trailer, boat or RV", "Tires, bearings, lights, registration"),
+        flag("hasPets", "Pets", "Vet visits, vaccines, supplies")),
+      h("fieldset", { class: "choice-group" },
+        h("legend", { text: "Does your home have any of these?" }),
+        SYSTEM_TYPES.filter((k) => p.homeType === "house" || !["septic", "well"].includes(k)).map((k) =>
+          check(p.systems.includes(k), (v) => { p.systems = SYSTEM_TYPES.filter((x) => (x === k ? v : p.systems.includes(x))); }, SYSTEM_LABEL[k][0], SYSTEM_LABEL[k][1]))),
       h("div", { class: "field narrow" },
         h("label", { for: "w-size", text: "People in your household" }),
         h("input", { id: "w-size", type: "number", inputmode: "numeric", min: "1", max: "20", step: "1", value: String(p.householdSize), oninput: (e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n <= 20) p.householdSize = n; } }),
@@ -183,6 +263,18 @@ export function renderWizard(container, ctx, opts = {}) {
         h("button", { type: "submit", class: "btn", text: "+ Add this vehicle" })));
   }
 
+  function lastDonePanel(res) {
+    const rows = LAST_TITLES.map((t) => res.added.find((a) => a.title === t)).filter(Boolean);
+    if (!rows.length) return null;
+    return h("details", { class: "w-last", open: Object.keys(W.last).length > 0 },
+      h("summary", { text: "Optional: when did you last do these?" }),
+      h("p", { class: "hint", text: "Pick what you remember. Anything you’re not sure about keeps a due date in the next month. If it’s been a year, it will show as overdue, which is the honest answer." }),
+      rows.map((t, i) => h("div", { class: "field" },
+        h("label", { for: `w-last-${i}`, text: t.title }),
+        h("select", { id: `w-last-${i}`, onchange: (e) => { if (e.target.value) W.last[t.title] = e.target.value; else delete W.last[t.title]; } },
+          LAST_CHOICES.map(([v, label]) => h("option", { value: v, text: label, selected: (W.last[t.title] || "") === v }))))));
+  }
+
   function stepReview() {
     let res = null, err = "";
     try { res = buildResult(ctx); } catch (e) { err = e.message || "Couldn't prepare your tasks."; }
@@ -195,6 +287,7 @@ export function renderWizard(container, ctx, opts = {}) {
         n ? " will be added. First due dates are spread over the next month so you’re not buried on day one." : " would be added. You already have everything that fits your home."),
       n ? h("ul", { class: "plain-list" }, Object.keys(counts).map((c) =>
         h("li", {}, `${CAT_LABEL[c] || c}: ${counts[c]}`))) : null,
+      lastDonePanel(res),
       W.rerun ? h("p", { class: "hint", text: "Re-running setup only adds missing tasks. Nothing you already have is changed or removed." }) : null,
       h("p", { class: "hint", text: "You can edit, snooze, skip or delete any task afterwards." }));
   }
@@ -203,7 +296,7 @@ export function renderWizard(container, ctx, opts = {}) {
     const active = container.ownerDocument.activeElement;
     const keepId = !moveFocus && active && active.id && container.contains(active) ? active.id : null;
     const last = steps.length - 1;
-    const body = W.step === 0 ? stepHome() : W.step === 1 ? stepVehicles() : stepReview();
+    const body = W.step === 0 ? stepHome() : W.step === 1 ? stepFeatures() : W.step === 2 ? stepVehicles() : stepReview();
     const heading = h("h2", { id: "w-heading", tabindex: "-1", text: W.rerun ? `Re-run setup: ${steps[W.step]}` : steps[W.step] });
     container.replaceChildren(
       h("div", { class: "wizard" },
@@ -217,11 +310,11 @@ export function renderWizard(container, ctx, opts = {}) {
         h("p", { class: "form-error", id: "w-error", role: "alert", text: W.error }),
         h("div", { class: "wizard-actions" },
           W.step > 0 ? h("button", { type: "button", class: "btn", text: "Back", onclick: () => {
-            if (W.step === 0) return; if (W.step === 1) { tryAddVehicle(false); W.error = ""; } go(W.step - 1); } }) : null,
+            if (W.step === 0) return; if (W.step === 2) { tryAddVehicle(false); W.error = ""; } go(W.step - 1); } }) : null,
           W.step < last
             ? h("button", { type: "button", class: "btn primary solid", text: "Next", onclick: () => {
-                if (W.step === 0 && !readStep0()) return;
-                if (W.step === 1 && !tryAddVehicle(false)) return;
+                if (W.step === 1 && !readStep1()) return;
+                if (W.step === 2 && !tryAddVehicle(false)) return;
                 go(W.step + 1); } })
             : h("button", { type: "button", class: "btn primary solid", text: W.rerun ? "Add missing tasks" : "Finish setup", onclick: () => finish(false) }),
           W.rerun ? h("button", { type: "button", class: "btn subtle", text: "Cancel", onclick: cancel }) : null),

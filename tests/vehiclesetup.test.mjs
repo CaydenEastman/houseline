@@ -11,7 +11,8 @@ const btn = (doc, re) => doc.getElementById("wizard").querySelectorAll("button")
 async function run(odo, oil) {
   const doc = makeDocument(); const st = store();
   await mount(doc, { store: st, state: freshState() });
-  btn(doc, /^Next$/).click(); await sleep(5);
+  btn(doc, /^Next$/).click(); await sleep(5); // home -> what's in it
+  btn(doc, /^Next$/).click(); await sleep(5); // -> vehicles
   const wz = doc.getElementById("wizard");
   wz.querySelector("#w-vname").value = "Civic"; wz.querySelector("#w-vodo").value = odo;
   if (oil !== undefined) wz.querySelector("#w-voil").value = oil;

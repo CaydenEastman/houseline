@@ -14,6 +14,8 @@ export const ITEM_KINDS = ["appliance", "hvac", "plumbing", "electrical", "paint
 export const SUPPLY_CATEGORIES = ["water", "food", "medical", "power", "tools", "docs", "other"];
 export const HOME_TYPES = ["house", "condo", "apartment"];
 export const CLIMATE_TYPES = ["cold", "mild", "hot"];
+/** Home features that switch whole groups of tasks on (profile.systems). */
+export const SYSTEM_TYPES = ["fireplace", "garage", "basement", "sump", "septic", "well", "solar", "ev", "generator"];
 export const HOME_AGE_TYPES = ["new", "mid", "old"];
 export const LIMITS = {
   title: 120, vehicleName: 80, notes: 2000, text: 500, name: 120, label: 100, tag: 40, tags: 20,
@@ -846,6 +848,11 @@ export function updateProfile(state, patch) {
   if ("climate" in patch) {
     if (!CLIMATE_TYPES.includes(patch.climate)) throw new Error(`Climate must be one of ${CLIMATE_TYPES.join(", ")}`);
     p.climate = patch.climate;
+  }
+  if ("rents" in patch) bool("rents");
+  if ("systems" in patch) {
+    if (!Array.isArray(patch.systems) || patch.systems.some((x) => !SYSTEM_TYPES.includes(x))) throw new Error("Home features must be a list of known features");
+    p.systems = SYSTEM_TYPES.filter((x) => patch.systems.includes(x));
   }
   if ("householdSize" in patch) {
     const n = patch.householdSize;
