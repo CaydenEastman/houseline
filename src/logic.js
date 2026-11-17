@@ -22,6 +22,9 @@ export const LIMITS = {
 
 // People in the household (and pets): shared with everyone in it, so only what helps in an emergency.
 export const PEOPLE_MAX = 20;
+export const BAG_MAX = 30;
+export const BAG_ITEM_MAX = 60;
+export const HOUSE_INFO_MAX = 20;
 export const PERSON_KINDS = ["adult", "child", "pet"];
 export const PERSON_KIND_LABEL = { adult: "Adult", child: "Child", pet: "Pet" };
 export const BLOOD_TYPES = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -739,6 +742,13 @@ function normalizePerson(raw) {
   for (const k of PERSON_TEXT) out[k] = str(raw[k], k[0].toUpperCase() + k.slice(1), PERSON_LIMIT[k]);
   // "private": allergies and health notes live in a per-account table instead of the shared household data.
   if (raw.private === true) { out.private = true; out.allergies = ""; out.medical = ""; }
+  if (raw.bag !== undefined && raw.bag !== null) {
+    if (!Array.isArray(raw.bag) || raw.bag.length > BAG_MAX) throw new Error(`A go-bag list can have at most ${BAG_MAX} items`);
+    out.bag = raw.bag.map((b, i) => {
+      if (!b || typeof b !== "object") throw new Error(`Go-bag item ${i + 1} must be an object`);
+      return { t: str(b.t, `Go-bag item ${i + 1}`, BAG_ITEM_MAX, { required: true }), ok: b.ok === true };
+    });
+  }
   return out;
 }
 
@@ -758,6 +768,11 @@ export function updatePerson(state, id, patch) {
   if (!patch || typeof patch !== "object") throw new Error("Patch must be an object");
   const next = normalizePerson({ ...state.people[i], ...patch, id });
   return { ...state, people: mapAt(state.people, i, () => next) };
+}
+
+/** Replace one person's go-bag checklist: [{ t: "Water", ok: true }]. */
+export function setBag(state, id, bag) {
+  return updatePerson(state, id, { bag });
 }
 
 export function deletePerson(state, id) {
@@ -865,6 +880,14 @@ export function updateEmergency(state, patch) {
     }
   }
   if ("notes" in patch) next.notes = str(patch.notes, "Emergency notes", LIMITS.text);
+  if ("houseInfo" in patch) {
+    if (!Array.isArray(patch.houseInfo)) throw new Error("House info must be a list");
+    if (patch.houseInfo.length > HOUSE_INFO_MAX) throw new Error(`At most ${HOUSE_INFO_MAX} house info entries`);
+    next.houseInfo = patch.houseInfo.map((c, i) => {
+      if (!c || typeof c !== "object") throw new Error(`House info ${i + 1} must be an object`);
+      return { label: str(c.label, `House info ${i + 1} label`, 60, { required: true }), value: str(c.value, `House info ${i + 1} value`, 200) };
+    });
+  }
   return { ...state, emergency: next };
 }
 

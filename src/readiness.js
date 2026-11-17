@@ -92,6 +92,7 @@ const PERSON_LINES = (p0, priv) => { const p = p0.private && priv && priv[p0.id]
 const PERSON_LINES0 = (p) => [
   ["Allergies", p.allergies], ["Blood type", p.bloodType], [p.kind === "pet" ? "Health" : "Health", p.medical],
   [p.kind === "pet" ? "Vet" : "Doctor", p.doctor], ["Needs", p.needs], ["Good to know", p.things], ["Phone", p.phone],
+  ["Go-bag", p.bag && p.bag.length ? `${p.bag.filter((b) => b.ok).length} of ${p.bag.length} packed` : ""],
 ].filter(([, v]) => v && String(v).trim());
 
 export function emergencySheetText(state, today, priv) {

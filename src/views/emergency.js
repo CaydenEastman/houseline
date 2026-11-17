@@ -1,6 +1,7 @@
 // Emergency view: readiness score, supplies CRUD, emergency info form, printable sheet.
 import { addSupply, updateSupply, deleteSupply, updateEmergency, daysBetween } from "../logic.js";
 import { SUPPLY_STARTERS } from "../templates.js";
+import { drillsPanel, houseInfoPanel } from "./practicepanels.js";
 import { readiness, REQUIREMENTS, emergencySheetHTML, emergencySheetText } from "../readiness.js";
 import { fmtDate, plural } from "../dom.js";
 
@@ -63,6 +64,8 @@ function build(ctx, rerender) {
     readinessPanel(ctx, state, r, rerender),
     suppliesPanel(ctx, state, today, rerender),
     infoPanel(ctx, state, rerender),
+    drillsPanel(ctx, state, today, rerender, (fk) => { S.pending = fk; }),
+    houseInfoPanel(ctx, state, rerender, (fk) => { S.pending = fk; }),
     sheetPanel(ctx, state, today, rerender));
 }
 

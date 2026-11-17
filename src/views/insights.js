@@ -3,6 +3,7 @@ import { workload, spendTrend, costByItem, costByVehicle, binderHTML, binderText
 import { previousMonth, currentMonth, monthlyRecap, recapText } from "../recap.js";
 import { yearlyBudget, rangeText } from "../costs.js";
 import { spend } from "../logic.js";
+import { houseReview, reviewText } from "../practice.js";
 import { makePaint, plural, money } from "./shared.js";
 
 export const id = "insights";
@@ -20,6 +21,15 @@ function build(ctx, rerender) {
   const state = ctx.getState();
   const today = ctx.today();
   const nameOf = (pid) => (typeof ctx.personName === "function" ? ctx.personName(pid) : null) || "Someone";
+
+  // ----- yearly review -----
+  let review = { year: Number(today.slice(0, 4)), sections: [] };
+  try { review = houseReview(state, today); } catch { /* odd data must not blank the screen */ }
+  const reviewCard = h("section", { class: "v-panel", "aria-labelledby": "v-rev-h" },
+    h("h3", { id: "v-rev-h", class: "v-h3", text: "State of the house" }),
+    h("p", { class: "v-hint", text: "A quick look at what needs attention. Worth reading once a year, or before a big season." }),
+    review.sections.map((sec) => h("div", {}, h("h4", { class: "v-h5", text: sec.title }), h("ul", { class: "v-plain" }, sec.lines.map((l) => h("li", { text: l }))))),
+    h("div", { class: "v-actions" }, h("button", { type: "button", class: "btn", "data-fk": "v-rev-copy", text: "Copy this review", onclick: async () => { await copy(reviewText(state, today), "Copied the review.", "v-rev-copy"); if (typeof ctx.toast === "function") ctx.toast("Copied the review."); } })));
 
   // ----- workload -----
   let wl = [];
@@ -122,7 +132,7 @@ function build(ctx, rerender) {
       h("textarea", { id: "v-ex-area", rows: "8", readonly: true, "data-fk": "v-ex-area", text: S.showText })) : null);
 
   return h("section", { class: "v-view", "aria-labelledby": "v-ins-h" },
-    h("h2", { id: "v-ins-h", class: "v-h2", text: "Insights" }), recapCard, budCard, wlCard, spendCard, catCard, vehCard, itemCard, exportCard);
+    h("h2", { id: "v-ins-h", class: "v-h2", text: "Insights" }), reviewCard, recapCard, budCard, wlCard, spendCard, catCard, vehCard, itemCard, exportCard);
 }
 
 export default { id, label, render };

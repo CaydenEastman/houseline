@@ -97,6 +97,7 @@ export function validateState(s) {
       need(PERSON_KINDS.includes(x.kind), `${p}.kind is invalid`);
       need(BLOOD_TYPES.includes(x.bloodType), `${p}.bloodType is invalid`);
       need(x.private === undefined || typeof x.private === "boolean", `${p}.private must be true or false`);
+      need(x.bag === undefined || (Array.isArray(x.bag) && x.bag.length <= 30 && x.bag.every((b) => isObj(b) && typeof b.t === "string" && b.t.trim() !== "" && b.t.length <= 60 && typeof b.ok === "boolean")), `${p}.bag must be a list of up to 30 { t, ok } items`);
       for (const k of PERSON_TEXT) need(strMax(x[k], PERSON_LIMIT[k]), `${p}.${k} must be a string of at most ${PERSON_LIMIT[k]} characters`);
     });
   }
@@ -191,6 +192,10 @@ export function validateState(s) {
   need(strMax(e.outOfAreaContact, LIMITS.text), `emergency.outOfAreaContact must be a string of at most ${LIMITS.text} characters`);
   need(isObj(e.shutoffs) && ["water", "gas", "electric"].every((k) => strMax(e.shutoffs[k], LIMITS.text)), `emergency.shutoffs must have water/gas/electric strings of at most ${LIMITS.text} characters`);
   need(strMax(e.notes, LIMITS.text), `emergency.notes must be a string of at most ${LIMITS.text} characters`);
+  if (e.houseInfo !== undefined) {
+    need(Array.isArray(e.houseInfo) && e.houseInfo.length <= 20, "emergency.houseInfo must be a list of at most 20");
+    e.houseInfo.forEach((c, i) => need(isObj(c) && typeof c.label === "string" && c.label.trim() !== "" && c.label.length <= 60 && strMax(c.value, 200), `emergency.houseInfo[${i}] needs a label (60) and value (200)`));
+  }
   return s;
 }
 

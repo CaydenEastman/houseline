@@ -1,11 +1,12 @@
 // People view: the people (and pets) in the home, with the few things someone would need in an emergency.
 // Everything here is visible to everyone who shares the household, and the screen says so.
-import { addPerson, updatePerson, deletePerson, PERSON_PRIVATE_FIELDS, PEOPLE_MAX, PERSON_KINDS, PERSON_KIND_LABEL, BLOOD_TYPES } from "../logic.js";
+import { addPerson, updatePerson, deletePerson, setBag, BAG_MAX, PERSON_PRIVATE_FIELDS, PEOPLE_MAX, PERSON_KINDS, PERSON_KIND_LABEL, BLOOD_TYPES } from "../logic.js";
 import { makePaint } from "./shared.js";
+import { bagFromPreset, bagProgress } from "../practice.js";
 
 export const id = "people";
 export const label = "Family";
-const S = { pending: null, form: null, confirmDel: null, loaded: false };
+const S = { pending: null, form: null, confirmDel: null, loaded: false, bagOpen: null, bagError: "" };
 const paint = makePaint(S);
 const rid = () => "p-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -93,6 +94,7 @@ function build(ctx, rerender) {
     line("Allergies", p.private && priv[p.id] ? priv[p.id].allergies : p.allergies), line("Blood type", p.bloodType), line("Health", p.private && priv[p.id] ? priv[p.id].medical : p.medical),
     p.private ? h("p", { class: "v-meta" }, priv[p.id] ? "Allergies and health notes are private to your account." : "Has private allergy and health notes, visible only to whoever added them.") : null, line(p.kind === "pet" ? "Vet" : "Doctor", p.doctor),
     line("Needs", p.needs), line("Good to know", p.things),
+    bagPanel(p),
     S.confirmDel === p.id
       ? h("div", { class: "v-confirm", role: "group", "aria-label": `Delete ${p.name}?` }, h("p", { text: `Remove ${p.name}'s details?` }),
         h("div", { class: "v-actions" },
@@ -101,6 +103,32 @@ function build(ctx, rerender) {
       : h("div", { class: "v-actions" },
         h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit ${p.name}`, onclick: () => { S.form = blank(p); if (p.private && priv[p.id]) Object.assign(S.form, { allergies: priv[p.id].allergies || "", medical: priv[p.id].medical || "" }); S.pending = "v-pf-name"; rerender(); } }),
         h("button", { type: "button", class: "btn v-small", text: "Remove", "aria-label": `Remove ${p.name}`, onclick: () => { S.confirmDel = p.id; rerender(); } })));
+
+
+  const saveBag = (p, bag, fk) => {
+    try { const next = setBag(ctx.getState(), p.id, bag); S.pending = fk; if (!ctx.commit(next, null)) rerender(); }
+    catch (e) { S.bagError = e && e.message ? e.message : "Couldn't save that."; S.pending = fk; rerender(); }
+  };
+  const bagPanel = (p) => {
+    const bag = p.bag || [];
+    const pr = bagProgress(bag);
+    const open = S.bagOpen === p.id;
+    const add = h("input", { id: `bag-add-${p.id}`, type: "text", maxlength: "60", placeholder: "Add an item", autocomplete: "off", "data-fk": `bag-add-${p.id}`, "aria-label": `Add a go-bag item for ${p.name}` });
+    return h("details", { class: "p-bag", open: open ? true : null, ontoggle: (e) => { if (e.target && e.target.open) S.bagOpen = p.id; else if (S.bagOpen === p.id) S.bagOpen = null; } },
+      h("summary", { text: pr.all ? `Go-bag: ${pr.ok} of ${pr.all} packed` : "Go-bag checklist" }),
+      bag.length ? h("ul", { class: "v-plain p-bag-list" }, bag.map((b, i) => h("li", { class: "p-bag-item" },
+        h("label", { class: "chip-check" },
+          h("input", { type: "checkbox", checked: b.ok ? true : null, "data-fk": `bag-${p.id}-${i}`, "aria-label": `${b.t}, packed`,
+            onchange: (e) => saveBag(p, bag.map((x, j) => (j === i ? { ...x, ok: e.target.checked } : x)), `bag-${p.id}-${i}`) }),
+          " ", b.t),
+        h("button", { type: "button", class: "btn subtle v-small", "aria-label": `Remove ${b.t}`, text: "Remove", onclick: () => saveBag(p, bag.filter((_, j) => j !== i), `bag-add-${p.id}`) }))))
+        : h("p", { class: "v-hint", text: "No list yet. Start with a standard one and change it to fit." }),
+      h("div", { class: "v-actions" },
+        !bag.length ? h("button", { type: "button", class: "btn v-small", "data-fk": `bag-std-${p.id}`, text: "Use a standard list", onclick: () => saveBag(p, bagFromPreset(p.kind), `bag-add-${p.id}`) }) : null,
+        bag.length && pr.ok ? h("button", { type: "button", class: "btn subtle v-small", text: "Unpack all (for a refresh)", onclick: () => saveBag(p, bag.map((x) => ({ ...x, ok: false })), `bag-add-${p.id}`) }) : null),
+      bag.length < BAG_MAX ? h("form", { class: "v-inline-form", novalidate: true, onsubmit: (e) => { e.preventDefault(); if (!add.value.trim()) return; saveBag(p, [...bag, { t: add.value.trim(), ok: false }], `bag-add-${p.id}`); } }, add, h("button", { type: "submit", class: "btn v-small", text: "Add" })) : null,
+      S.bagError && S.bagOpen === p.id ? h("p", { class: "form-error", role: "alert", text: S.bagError }) : null);
+  };
 
   const addBtn = people.length >= PEOPLE_MAX ? null
     : h("button", { type: "button", class: "btn primary", id: "v-ppl-add", "data-fk": "v-ppl-add", text: "+ Add someone", onclick: () => { S.form = blank(null); S.pending = "v-pf-name"; rerender(); } });
