@@ -3,7 +3,7 @@ import { addItem, updateItem, deleteItem, dueInfo, statusOf, sortTasks, daysBetw
 import { fmtDate, plural, milesText } from "../dom.js";
 
 export const id = "inventory";
-export const label = "Inventory";
+export const label = "Appliances";
 
 const KINDS = [
   ["appliance", "Appliance"], ["hvac", "Heating and cooling"], ["plumbing", "Plumbing"],
@@ -87,7 +87,7 @@ function build(ctx, rerender) {
 
   return h("section", { class: "v-view", "aria-labelledby": "v-inv-h" },
     h("div", { class: "v-head" },
-      h("h2", { id: "v-inv-h", class: "v-h2", text: "Inventory" }),
+      h("h2", { id: "v-inv-h", class: "v-h2", text: "Appliances" }),
       h("button", { type: "button", class: "btn v-primary", "data-fk": "v-inv-add", "aria-expanded": editingNew ? "true" : "false",
         onclick: () => { S.form = emptyDraft(null); S.pending = "v-item-name"; rerender(); }, text: "Add item" })),
     h("p", { class: "v-lede", text: "Keep model numbers, filter sizes and warranty dates for the things in your home, so you're not hunting for them when something breaks." }),

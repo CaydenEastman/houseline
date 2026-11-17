@@ -51,7 +51,7 @@ test("Insights: blocked downloads fall back to text area", async () => {
 });
 test("Vendors: empty state, add form saves through commit", () => {
   const { container, calls } = setup(vendors, mkState({ items: [mkItem({ id: "i1", name: "Furnace" })] }));
-  assert.ok(container.textContent.includes("No vendors yet"));
+  assert.ok(container.textContent.includes("No contacts yet"));
   btn(container, (b) => b.textContent === "+ Add vendor").click();
   const name = container.querySelector("#v-vf-name");
   name.value = "Ace Plumbing"; name.dispatchEvent({ type: "input", bubbles: true, target: name, preventDefault() {} });

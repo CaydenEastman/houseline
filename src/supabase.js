@@ -103,6 +103,8 @@ export function createSupabaseBackend({ url, anonKey, auth, fetchImpl, realtime 
     if (res.status === 401 && !retried) { try { await auth.refresh(); } catch { /* fall through to the error below */ } return http(path, { method, headers, body, raw, retried: true }); }
     if (!res.ok) {
       let msg = "", body = null; try { body = await res.json(); msg = body.message || body.error || body.msg || ""; } catch { /* no body */ }
+      // 403 means the cached household id is no longer ours (removed, left or joined elsewhere): look it up again next time.
+      if (res.status === 403) { householdId = null; householdFor = null; householdPending = null; }
       const e = new Error(msg || `Server error (${res.status})`); e.status = res.status; e.code = body && body.statusCode ? String(body.statusCode) : undefined; throw e;
     }
     if (raw) return res;

@@ -166,3 +166,9 @@ export function reminderState(tz, hour, lastSentOn, windowHours, now = new Date(
   const day = localParts(tz, new Date(now.getTime() - since * 3600e3)).date;
   return { due: since < windowHours && lastSentOn !== day, day, localDate: lp.date };
 }
+
+/** 0 (Sunday) to 6 (Saturday) for a YYYY-MM-DD date. */
+export function weekdayOf(date) { return new Date(`${date}T12:00:00Z`).getUTCDay(); }
+
+/** True when the date falls on one of the person's quiet days (no reminders that day). */
+export function isQuietDay(quietDays, date) { return Array.isArray(quietDays) && quietDays.includes(weekdayOf(date)); }

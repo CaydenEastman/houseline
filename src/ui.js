@@ -24,7 +24,8 @@ import { homeView, youView } from "./views/hubs.js";
 import { quickForm } from "./quickform.js";
 import * as pwa from "./pwa.js";
 import { helpPanel } from "./views/help.js";
-import { exportEverything, clearLocalCache, joinImpact, householdError, formatCode } from "./household.js";
+import { exportEverything, photoIdsOf, clearLocalCache, joinImpact, householdError, formatCode } from "./household.js";
+import { inviteLink, pendingJoin, clearJoin } from "./invite.js";
 
 export { localToday };
 
@@ -43,7 +44,7 @@ const TABS = [
   { id: "calendar", label: calendarView.label || "Calendar", icon: "\u{1F4C5}", view: calendarView },
   { id: "insights", label: insightsView.label || "Insights", icon: "\u{1F4CA}", view: insightsView },
   { id: "home", label: "Home", icon: "\u{1F3E0}", view: homeView },
-  { id: "you", label: "You", icon: "\u{1F464}", view: youView },
+  { id: "you", label: "More", icon: "\u{1F464}", view: youView },
 ];
 // Screens reached from the Home and You tiles. The bottom bar keeps the parent lit and a back bar leads home.
 const PARENT = { tasks: "home", inventory: "home", vehicles: "home", vendors: "home", emergency: "home", history: "you", insights: "you" };
@@ -326,7 +327,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   // ---------- navigation ----------
-  // Bottom bar: Today, Calendar, + (add anything), Home, You.
+  // Bottom bar: Today, Calendar, + (add anything), Home, More.
   const NAV = ["today", "calendar", "add", "home", "you"];
   function renderNav() {
     const here = PARENT[active] || active;
@@ -636,8 +637,10 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       let next;
       try { next = markDone(state, task.id, today, opts); } catch (ex) { err.textContent = errMsg(ex); return; }
       saved = true;
+      const firstEver = !(state.completions || []).length;
       closeDialog(els.complete);
       commit(next, `Marked done: ${task.title}`);
+      if (firstEver) setTimeout(() => offerReminders(), 600);
     } },
       h("h2", { id: "complete-dialog-title", text: "Complete task" }),
       h("p", { class: "dialog-sub", text: task.title }),
@@ -831,7 +834,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     { icon: "\u{1F3E1}", title: "Today is your home base", lines: [
       "The top line says what needs doing. Tap an area to filter, and Done when you've finished a task.",
       "Tap the home score to see how ready the house, cars and emergency supplies are.",
-      "Home holds your tasks, inventory, vehicles, vendors and emergency plans. You holds history, insights and settings."] },
+      "Home holds your tasks, appliances, vehicles, contacts and emergency plans. More holds history, spending and settings."] },
     { icon: "⚡", title: "Add things in seconds", lines: [
       "Tap + and type, like “clean gutters every 6 months” or “renew registration every January 15”.",
       "Need dates, notes or a person assigned? Pick “Task with details” in the same sheet. You can also import a spreadsheet from Settings."] },
@@ -1016,8 +1019,19 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     openDialog(els.settings, [
       h("h2", { id: "settings-dialog-title", text: "Account" }),
       accountPanel(),
+      h("p", { class: "hint" }, h("a", { href: "privacy.html", target: "_blank", rel: "noopener", text: "What this app stores and where (privacy)" })),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
     ], { trigger, focus: "#s-email, #s-signout" });
+  }
+
+  // Asked once, right after the very first thing is marked done: that is when a reminder is easiest to see the point of.
+  async function offerReminders() {
+    try {
+      const w = doc.defaultView; const ls = w && w.localStorage;
+      if (!ls || ls.getItem("motH.remindAsked") || !pwa.supported() || pwa.remindersOn(ls)) return;
+      ls.setItem("motH.remindAsked", "1");
+      if (await confirmDialog({ title: "Want a reminder?", message: "Nice, that's your first one done. The app can nudge you when something is due, so you don't have to remember to check. Open the reminder settings now?", confirmLabel: "Set up reminders" })) openSettings(null);
+    } catch { /* an offer is never worth an error */ }
   }
 
   function remindersPanel() {
@@ -1055,11 +1069,24 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           catch (e) { toast(e && e.message ? e.message : "Couldn't change the time.", { error: true }); }
           finally { paint(); }
         });
+        const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const quiet = pushHour != null ? push.quietDays() : [];
+        const quietBox = pushHour != null ? h("fieldset", { class: "quiet-days" },
+          h("legend", { text: "No reminders on" }),
+          ...DAYS.map((d, i) => h("label", { class: "chip-check" },
+            h("input", { type: "checkbox", value: String(i), checked: quiet.includes(i), "aria-label": `No reminders on ${d}`,
+              onchange: async () => {
+                const picked = [...wrap.querySelectorAll(".quiet-days input")].filter((x) => x.checked).map((x) => Number(x.value));
+                busy(true);
+                try { await push.enable(Number(sel.value), picked); toast(picked.length ? "Quiet days saved." : "Reminders will come every day."); }
+                catch (e) { toast(e && e.message ? e.message : "Couldn't save quiet days.", { error: true }); }
+                finally { paint(); }
+              } }), ` ${d}`))) : null;
         const kids = [
           h("p", { class: "hint", text: pushHour != null
             ? `On. You'll get one notification each morning at ${hourLabel(pushHour)} when something is overdue or due, even if the app is closed.`
             : "Get a notification each morning when something is overdue or due, even if the app is closed." }),
-          h("div", { class: "field" }, h("label", { for: "s-remind-hour", text: "Time" }), sel), btn];
+          h("div", { class: "field" }, h("label", { for: "s-remind-hour", text: "Time" }), sel), quietBox, btn].filter(Boolean);
         if (!pwa.isStandalone()) kids.push(h("p", { class: "hint", text: "On iPhone, reminders only work after you add the app to your Home Screen (Share, then Add to Home Screen) and open it from there." }));
         wrap.replaceChildren(...kids);
         return;
@@ -1067,7 +1094,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const msg = !pwa.supported()
         ? "Phone reminders aren't available in this browser. Add the app to your Home Screen from a regular browser to use them."
         : on ? "On. You'll get one notification a day when something is overdue or due, the next time you open the app."
-        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day." + (push && auth && !auth.session() ? " Sign in (You, Account) to get it every morning even when the app is closed." : "");
+        : "Get a notification when something is overdue or due. It's sent when you open the app, at most once a day." + (push && auth && !auth.session() ? " Sign in (More, Account) to get it every morning even when the app is closed." : "");
       const btn = h("button", { type: "button", class: "btn", id: "s-remind", text: on ? "Turn off reminders" : "Turn on reminders", disabled: !pwa.supported() });
       btn.addEventListener("click", async () => {
         if (on) { pwa.disableReminders(ls); toast("Reminders turned off."); paint(); return; }
@@ -1122,7 +1149,9 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       });
       const google = h("button", { type: "button", class: "btn", id: "s-google", text: "Continue with Google" });
       google.addEventListener("click", () => { doc.defaultView.location.assign(auth.googleUrl(here())); });
+      const invited = pendingJoin(doc.defaultView.localStorage);
       wrap.replaceChildren(
+        invited ? h("p", { class: "invited-note", id: "s-invited", text: "You were invited to share a household. Sign in first, then you'll be asked to join. Use the same phone and browser you're on now." }) : null,
         h("p", { class: "hint", text: "Sign in to keep your data safe in the cloud and use it on more than one phone. Your tasks on this phone are kept and merged in." }),
         h("div", { class: "field" }, h("label", { for: "s-email", text: "Email" }), email),
         h("div", { class: "row-panel-actions wrap-actions" }, mail, google), note);
@@ -1144,8 +1173,21 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       ? { title: "Join this household?", message: "You haven't finished anything or added anything of your own yet, so nothing important is lost. You'll see their tasks from now on.", confirmLabel: "Join" }
       : { title: "Join this household?", message: `Your ${impact.summary} will be replaced by theirs. Cancel and use Download all my data first if you want a copy.`, confirmLabel: "Join anyway", danger: true });
     if (!ok) return false;
-    try { await api.accept(codeText); } catch (e) { (onFail || ((x) => toast(householdError(x), { error: true })))(e); return false; }
-    clearLocalCache(ls, "motH.v1");
+    // Their own photo files would be left behind with nobody able to reach them (and counting against storage),
+    // so clear them first, while they still belong to that household. Only when they are alone in it and have photos.
+    let photosGone = false;
+    try {
+      if (photoIdsOf(state).length) {
+        const info = await api.info();
+        if (info && Array.isArray(info.members) && info.members.length === 1 && info.household_id) { await api.deletePhotoFiles(info.household_id); photosGone = true; }
+      }
+    } catch { /* leftover files are harmless; do not block joining over them */ }
+    try { await api.accept(codeText); } catch (e) {
+      const fn = onFail || ((x) => toast(householdError(x), { error: true }));
+      fn(photosGone ? Object.assign(new Error(`${householdError(e)} Your photos were already removed from the cloud copy; the ones on this phone are still here.`), { code: e && e.code }) : e);
+      return false;
+    }
+    clearLocalCache(ls, "motH.v1"); clearJoin(ls);
     toast("Joined. Loading the shared tasks…"); setTimeout(reloadApp, 600);
     return true;
   }
@@ -1155,15 +1197,16 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     try {
       const api = hhApi(); const auth = authOf(); const ls = doc.defaultView.localStorage;
       const s = auth && auth.session && auth.session();
+      const linked = pendingJoin(ls); // opened from an invite link
       if (!api || !s || !s.user) return;
       const key = `motH.joinAsked.${s.user.id}`;
-      if (ls.getItem(key)) return;
-      if ((state.completions || []).length) { ls.setItem(key, "1"); return; }
+      if (!linked && ls.getItem(key)) return;
+      if (!linked && (state.completions || []).length) { ls.setItem(key, "1"); return; }
       const info = await api.info();
-      if (!info || !Array.isArray(info.members) || info.members.length !== 1) { ls.setItem(key, "1"); return; }
+      if (!info || !Array.isArray(info.members) || info.members.length !== 1) { ls.setItem(key, "1"); clearJoin(ls); return; }
       ls.setItem(key, "1");
       const code = h("input", { type: "text", id: "j-code", autocomplete: "off", autocapitalize: "characters", spellcheck: "false", placeholder: "8-letter code, like K7M2 9QXR", maxlength: "9", "aria-label": "Invite code",
-        oninput: (e) => { e.target.value = formatCode(e.target.value); } });
+        value: linked || "", oninput: (e) => { e.target.value = formatCode(e.target.value); } });
       const err = h("p", { class: "form-error", role: "alert", hidden: true });
       const form = h("form", { novalidate: true, onsubmit: async (e) => {
         e.preventDefault();
@@ -1171,13 +1214,13 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         const joined = await joinHousehold(code.value, { onFail: (x) => { err.textContent = householdError(x); err.hidden = false; } });
         if (joined) closeDialog(els.settings);
       } },
-        h("h2", { id: "settings-dialog-title", text: "Were you given a code?" }),
-        h("p", { class: "hint", text: "If your partner or family invited you, type the code to see the same tasks. Otherwise just start your own." }),
+        h("h2", { id: "settings-dialog-title", text: linked ? "You were invited" : "Were you given a code?" }),
+        h("p", { class: "hint", text: linked ? "Your invite code is filled in. Join to see the same tasks as the person who invited you." : "If your partner or family invited you, type the code to see the same tasks. Otherwise just start your own." }),
         h("div", { class: "field" }, h("label", { for: "j-code", class: "sr-only", text: "Invite code" }), code), err,
         h("div", { class: "dialog-actions" },
-          h("button", { type: "button", class: "btn", id: "j-skip", text: "No, start my own", onclick: () => closeDialog(els.settings) }),
+          h("button", { type: "button", class: "btn", id: "j-skip", text: "No, start my own", onclick: () => { clearJoin(ls); closeDialog(els.settings); } }),
           h("button", { type: "submit", class: "btn primary solid", id: "j-go", text: "Join" })));
-      openDialog(els.settings, form, { trigger: null, focus: "#j-code" });
+      openDialog(els.settings, form, { trigger: null, focus: linked ? "#j-go" : "#j-code" });
     } catch { /* never get in the way of the app */ }
   }
 
@@ -1217,9 +1260,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         if (info.invite) {
           const left = Math.max(1, Math.ceil((new Date(info.invite.expires_at) - Date.now()) / 86400000));
           kids.push(
-            h("p", { class: "hint", text: `Give this code to the person (it works once and expires in ${left} day${left === 1 ? "" : "s"}). They sign in (Google or email) and the app asks for this code. It is also under You, Account, Household.` }),
+            h("p", { class: "hint", text: `Give this code to the person (it works once and expires in ${left} day${left === 1 ? "" : "s"}). Easiest: tap Share invite link and send it. Or give them the code: after they sign in, the app asks for it (also under More, Account, Household).` }),
             h("p", { class: "invite-code", id: "s-invite-code", text: info.invite.code }),
             h("div", { class: "row-panel-actions wrap-actions" },
+              h("button", { type: "button", class: "btn primary solid", id: "s-invite-link", text: "Share invite link", onclick: async () => {
+                const l = doc.defaultView.location; const link = inviteLink(l.origin + l.pathname, info.invite.code); const nav = doc.defaultView.navigator || {};
+                try { if (typeof nav.share === "function") { await nav.share({ title: "Man of the House", text: "Join our household in Man of the House:", url: link }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+                try { await nav.clipboard.writeText(link); toast("Link copied. Paste it into a message."); } catch { toast("Couldn't copy the link. Use the code instead.", { error: true }); }
+              } }),
               h("button", { type: "button", class: "btn", id: "s-invite-copy", text: "Copy code", onclick: async () => { try { await doc.defaultView.navigator.clipboard.writeText(info.invite.code); toast("Copied."); } catch { toast("Select the code and copy it.", { error: true }); } } }),
               h("button", { type: "button", class: "btn", id: "s-invite-cancel", text: "Cancel invite", onclick: async () => { try { await api.cancelInvite(); paint(); } catch (e) { fail(e); } } })));
         } else if (info.members.length < 6) {
@@ -1410,7 +1458,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
   render();
   if (!tourSeen() && state.profile && state.profile.setupDone && !loadError) openTour(null);
-  else if (!loadError) setTimeout(() => { maybeAskForCode(); }, 300); // first sign-in: "were you given a code?" before they build their own list
+  else if (!loadError) setTimeout(() => {
+    const a = authOf();
+    if (a && a.session && !a.session() && pendingJoin(doc.defaultView.localStorage)) openAccount(null); // opened an invite link while signed out
+    else maybeAskForCode();
+  }, 300); // first sign-in: "were you given a code?" before they build their own list
   if (loadError) toast("Couldn't load your saved data, so a fresh start was opened. " + errMsg(loadError), { error: true, ms: 12000 });
   else if (store.warning) toast(String(store.warning), { error: true, ms: 10000 });
   else if (!persistent && store.mode === "local") toast("Storage is unavailable; changes will not be kept after you close this page.", { error: true, ms: 10000 });

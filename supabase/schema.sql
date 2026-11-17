@@ -452,3 +452,12 @@ end $$;
 
 -- Household tables are changed only through the functions above, never directly.
 revoke insert, update, delete, truncate, references, trigger on public.households, public.household_members from authenticated;
+
+-- ---------- Quiet days for reminders (migration "push_quiet_days") ----------
+-- Weekdays (0 = Sunday ... 6 = Saturday) on which a phone gets no reminder.
+alter table public.push_subscriptions add column if not exists quiet_days smallint[] not null default '{}';
+alter table public.push_subscriptions drop constraint if exists push_quiet_days_valid;
+alter table public.push_subscriptions add constraint push_quiet_days_valid check (quiet_days <@ array[0,1,2,3,4,5,6]::smallint[]);
+
+-- search_path note: every security-definer function pins search_path=public, and neither anon nor authenticated can
+-- CREATE in schema public, so nobody can plant look-alike objects. Rewriting them to an empty path is not needed.

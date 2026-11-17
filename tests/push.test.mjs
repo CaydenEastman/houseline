@@ -34,7 +34,7 @@ test("enable: subscribes with the public key and stores endpoint, keys, time zon
   const [url, opt] = r.calls[0];
   assert.ok(url.endsWith("/rest/v1/push_subscriptions?on_conflict=endpoint"));
   assert.equal(opt.headers.authorization, "Bearer tok");
-  assert.deepEqual(JSON.parse(opt.body), { endpoint: "https://push.example/abc", p256dh: "P", auth: "A", tz: "America/Denver", hour: 7 });
+  assert.deepEqual(JSON.parse(opt.body), { endpoint: "https://push.example/abc", p256dh: "P", auth: "A", tz: "America/Denver", hour: 7, quiet_days: [] });
   assert.equal(r.push.hour(), 7);
 });
 

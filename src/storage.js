@@ -143,8 +143,9 @@ export function validateState(s) {
         try { const u = new URL(l.url); ok = u.protocol === "http:" || u.protocol === "https:"; } catch { /* invalid */ }
       }
       need(ok, `${p}.links[${j}] must be {label, url} with an http(s) url`);
+      need(l.label.length <= LIMITS.label && l.url.length <= 2000, `${p}.links[${j}] label or url is too long`);
     });
-    need(Array.isArray(t.tags) && t.tags.length <= LIMITS.tags && t.tags.every((x) => typeof x === "string"), `${p}.tags must be a list of strings`);
+    need(Array.isArray(t.tags) && t.tags.length <= LIMITS.tags && t.tags.every((x) => typeof x === "string" && x.length <= LIMITS.tag), `${p}.tags must be a list of strings of at most ${LIMITS.tag} characters`);
     need(strMax(t.notes, LIMITS.notes), `${p}.notes must be a string of at most ${LIMITS.notes} characters`);
     need(typeof t.custom === "boolean", `${p}.custom must be a boolean`);
   });
@@ -153,14 +154,14 @@ export function validateState(s) {
   s.completions.forEach((c, i) => {
     const p = `completions[${i}]`;
     need(c.taskId === null || typeof c.taskId === "string", `${p}.taskId must be a string or null`);
-    need(typeof c.title === "string", `${p}.title must be a string`);
+    need(typeof c.title === "string" && c.title.length <= LIMITS.title, `${p}.title must be a string of at most ${LIMITS.title} characters`);
     need(CATEGORIES.includes(c.category), `${p}.category is invalid: ${c.category}`);
     need(isISO(c.date), `${p}.date must be YYYY-MM-DD`);
     need(c.kind === "done" || c.kind === "skipped", `${p}.kind must be "done" or "skipped"`);
     need(c.cost === null || (typeof c.cost === "number" && Number.isFinite(c.cost) && c.cost >= 0 && c.cost <= MAX_COST), `${p}.cost must be a number from 0 to ${MAX_COST} or null`);
-    need(typeof c.notes === "string", `${p}.notes must be a string`);
+    need(typeof c.notes === "string" && c.notes.length <= LIMITS.notes, `${p}.notes must be a string of at most ${LIMITS.notes} characters`);
     need(c.odometer === null || isInt(c.odometer, 0, MAX_ODOMETER), `${p}.odometer must be a whole number >= 0 or null`);
-    need(c.by === null || typeof c.by === "string", `${p}.by must be a string or null`);
+    need(c.by === null || (typeof c.by === "string" && c.by.length <= LIMITS.assignee), `${p}.by must be a string or null`);
     checkPhotoIds(c.photoIds, p);
   });
 

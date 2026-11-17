@@ -153,7 +153,7 @@ test("the invite text gives one path, and the code box explains itself", async (
   const ls = fakeLS({ "motH.tour": "1", "motH.joinAsked.u0": "1" });
   const { doc, dlg } = await start({ ls, info });
   await goAccount(doc);
-  assert.ok(dlg.textContent.includes("the app asks for this code"));
+  assert.ok(dlg.textContent.includes("Share invite link") && dlg.textContent.includes("the app asks for it"));
   assert.ok(!dlg.textContent.includes("Settings, Account"));
   const alone = await start({ ls: fakeLS({ "motH.tour": "1", "motH.joinAsked.u0": "1" }) });
   await goAccount(alone.doc);

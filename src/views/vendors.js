@@ -3,7 +3,7 @@ import { addVendor, updateVendor, deleteVendor } from "../logic.js";
 import { makePaint, plural } from "./shared.js";
 
 export const id = "vendors";
-export const label = "Vendors";
+export const label = "Contacts";
 const S = { pending: null, form: null, confirmDel: null, q: "" };
 const paint = makePaint(S);
 const rid = () => "v-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -76,13 +76,13 @@ function build(ctx, rerender) {
         h("button", { type: "button", class: "btn v-small", text: "Delete", "aria-label": `Delete ${v.name}`, onclick: () => { S.confirmDel = v.id; rerender(); } })));
 
   return h("section", { class: "v-view", "aria-labelledby": "v-vend-h" },
-    h("div", { class: "v-head" }, h("h2", { id: "v-vend-h", class: "v-h2", text: "Vendors" }),
+    h("div", { class: "v-head" }, h("h2", { id: "v-vend-h", class: "v-h2", text: "Contacts" }),
       h("button", { type: "button", class: "btn primary", id: "v-vend-add", "data-fk": "v-vend-add", text: "+ Add vendor", onclick: () => { S.form = blank(null); S.pending = "v-vf-name"; rerender(); } })),
     h("p", { class: "v-lede", text: "Keep the people you call in one place, linked to the appliances and systems they service." }),
     form,
-    vendors.length > 4 ? h("div", { class: "field" }, h("label", { for: "v-vend-q", text: "Search vendors" }),
+    vendors.length > 4 ? h("div", { class: "field" }, h("label", { for: "v-vend-q", text: "Search contacts" }),
       h("input", { id: "v-vend-q", type: "search", "data-fk": "v-vend-q", value: S.q, oninput: (e) => { S.q = e.target.value; S.pending = "v-vend-q"; rerender(); } })) : null,
-    vendors.length === 0 && !S.form ? h("div", { class: "v-panel" }, h("h3", { class: "v-h3", text: "No vendors yet" }), h("p", { class: "v-hint", text: "Add your plumber, HVAC company or mechanic so the number is handy when something breaks." }))
+    vendors.length === 0 && !S.form ? h("div", { class: "v-panel" }, h("h3", { class: "v-h3", text: "No contacts yet" }), h("p", { class: "v-hint", text: "Add your plumber, HVAC company or mechanic so the number is handy when something breaks." }))
       : h("ul", { class: "v-cards", "aria-label": plural(shown.length, "vendor") }, shown.map(card)));
 }
 

@@ -58,7 +58,7 @@ test('seeded state: all nine screens render without view errors (five bottom but
   assert.equal(doc.getElementById('app').hidden, false); assert.equal(doc.getElementById('wizard').hidden, true);
   const nav = () => doc.getElementById('nav');
   const labels = nav().querySelectorAll('button').map((b) => b.textContent.replace(/[^\w ]/g, '').trim());
-  for (const l of ['Today', 'Calendar', 'Add', 'Home', 'You']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
+  for (const l of ['Today', 'Calendar', 'Add', 'Home', 'More']) assert.ok(labels.some((x) => x.endsWith(l)), `${l} in ${JSON.stringify(labels)}`);
   assert.equal(nav().querySelectorAll('button').length, 5);
   const noErrors = (what) => assert.equal(doc.body.querySelectorAll('.view-error').length, 0, 'view error in ' + what + ': ' + doc.body.querySelectorAll('.view-error').map((e) => e.textContent).join('|'));
   for (const id of ['nav-today', 'nav-calendar', 'nav-home', 'nav-you']) {

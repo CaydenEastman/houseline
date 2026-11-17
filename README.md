@@ -38,7 +38,7 @@ A home maintenance reminder app for car, house, yard, and emergency prep. Plain 
 | Any other web host (GitHub Pages, etc.), no Supabase configured | This browser's local storage | No. Use Export/Import backup |
 | Any web host with Supabase configured and the user signed in | Your Supabase database and private photo bucket, cached on the device | Yes, instantly, with offline edits uploaded when the connection returns |
 
-The app picks one in `src/main.js` and falls back to local mode by itself. Cloud mode needs a Supabase project: follow `supabase/SETUP.md`, then fill in `config.js`. Sign in from **You, Account** (email link or Google). Until a Supabase project is configured, the Account screens are hidden and the app stays local. Local data is per browser and per device; clearing site data deletes it, so export a backup now and then.
+The app picks one in `src/main.js` and falls back to local mode by itself. Cloud mode needs a Supabase project: follow `supabase/SETUP.md`, then fill in `config.js`. Sign in from **More, Account** (email link or Google). Until a Supabase project is configured, the Account screens are hidden and the app stays local. Local data is per browser and per device; clearing site data deletes it, so export a backup now and then.
 
 ## Run it
 

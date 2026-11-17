@@ -105,7 +105,7 @@ function build(ctx, rerender) {
   const btn = (text, fk, fn) => h("button", { type: "button", class: "btn", text, "data-fk": fk, onclick: fn });
   const exportCard = h("section", { class: "v-panel", "aria-labelledby": "v-ex-h" },
     h("h3", { id: "v-ex-h", class: "v-h3", text: "Home binder and weekly digest" }),
-    h("p", { class: "v-hint", text: "The binder gathers appliances, warranties, emergency info, vendors, vehicles and history in one printable page. Open the saved file and use your browser's Print to make a PDF." }),
+    h("p", { class: "v-hint", text: "The binder gathers appliances, warranties, emergency info, contacts, vehicles and history in one printable page. Open the saved file and use your browser's Print to make a PDF." }),
     h("div", { class: "v-actions" },
       btn("Download home binder (.html)", "v-ex-binder", () => download(`home-binder-${today}.html`, binderHTML(state, today), "text/html", "v-ex-binder")),
       btn("Copy binder as text", "v-ex-btext", () => copy(binderText(state, today), "Copied the binder text.", "v-ex-btext"))),

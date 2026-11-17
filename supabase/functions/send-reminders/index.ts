@@ -3,7 +3,7 @@
 // local morning has arrived, it works out what is overdue or due today and sends a Web Push notification.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
-import { dueInfo, reminderState, localParts } from "./due.js";
+import { dueInfo, reminderState, localParts, isQuietDay } from "./due.js";
 
 const SITE = "https://caydeneastman.github.io/man-of-the-house/";
 const WINDOW_HOURS = 4; // if the hourly job was late or missed, still send within 4 hours after the chosen hour
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
     const { data: subs, error } = await sb.from("push_subscriptions").select("*").limit(5000);
     if (error) return json({ error: error.message }, 500);
-    const out = { checked: 0, sent: 0, nothingDue: 0, notYet: 0, removed: 0, failed: 0, would: [] as string[] };
+    const out = { checked: 0, quiet: 0, sent: 0, nothingDue: 0, notYet: 0, removed: 0, failed: 0, would: [] as string[] };
 
     for (const s of subs ?? []) {
       out.checked++;
@@ -66,6 +66,11 @@ Deno.serve(async (req) => {
       const lp = localParts(tz);
       const rs = reminderState(tz, s.hour, s.last_sent_on, WINDOW_HOURS);
       if (!force && !rs.due) { out.notYet++; continue; }
+      if (!force && isQuietDay(s.quiet_days, rs.day)) {
+        out.quiet++;
+        if (!dry) await sb.from("push_subscriptions").update({ last_sent_on: rs.day }).eq("endpoint", s.endpoint);
+        continue;
+      }
       const sum = await summary(s.user_id, lp.date);
       if (!sum || !sum.message) {
         out.nothingDue++;

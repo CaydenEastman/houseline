@@ -87,7 +87,7 @@ test("signed in: shows the email, and Sign out asks first, then signs out and re
 test("signed in with push available: Settings offers a morning time and turns server reminders on and off", async () => {
   const auth = fakeAuth({ session: { user: { email: "me@example.com" } } });
   const calls = [];
-  const motPush = { _h: null, hour() { return this._h; }, async enable(h) { calls.push(["on", h]); this._h = h; }, async disable() { calls.push(["off"]); this._h = null; } };
+  const motPush = { _h: null, hour() { return this._h; }, quietDays() { return this._q || []; }, async enable(h, q) { calls.push(["on", h]); this._h = h; if (q) this._q = q; }, async disable() { calls.push(["off"]); this._h = null; } };
   const reloads = [];
   const doc = makeDocument();
   doc.defaultView = { localStorage: fakeLS({ "motH.tour": "1" }), motAuth: auth, motPush, location: { origin: "https://me.github.io", pathname: "/x/", reload: () => reloads.push(1), assign() {} } };

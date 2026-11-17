@@ -32,11 +32,11 @@ export function createPush({ url, anonKey, auth, vapidKey, ls, nav = typeof navi
     return reg;
   }
 
-  async function send(sub, hour) {
+  async function send(sub, hour, quietDays = []) {
     const token = await auth.accessToken();
     if (!token) throw new Error("Sign in first.");
     const j = sub.toJSON ? sub.toJSON() : sub;
-    const row = { endpoint: j.endpoint, p256dh: j.keys && j.keys.p256dh, auth: j.keys && j.keys.auth, tz: zone(), hour };
+    const row = { endpoint: j.endpoint, p256dh: j.keys && j.keys.p256dh, auth: j.keys && j.keys.auth, tz: zone(), hour, quiet_days: quietDays };
     if (!row.p256dh || !row.auth) { row.p256dh = bytesToB64Url(sub.getKey("p256dh")); row.auth = bytesToB64Url(sub.getKey("auth")); }
     const res = await f(`${url}/rest/v1/push_subscriptions?on_conflict=endpoint`, {
       method: "POST",
@@ -49,13 +49,16 @@ export function createPush({ url, anonKey, auth, vapidKey, ls, nav = typeof navi
   return {
     /** The hour (0-23) reminders are set for on this device, or null when off. */
     hour() { const s = saved(); return s && Number.isInteger(s.hour) ? s.hour : null; },
-    async enable(hour) {
+    /** Days of the week (0 = Sunday ... 6 = Saturday) with no reminders. */
+    quietDays() { const s = saved(); return s && Array.isArray(s.quiet) ? s.quiet.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : []; },
+    async enable(hour, quietDays) {
       if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new Error("Pick an hour of the day.");
       const reg = await registration();
       let sub = await reg.pushManager.getSubscription();
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToBytes(vapidKey) });
-      await send(sub, hour);
-      ls.setItem(KEY, JSON.stringify({ hour }));
+      const quiet = quietDays === undefined ? this.quietDays() : [...new Set(quietDays)].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).sort();
+      await send(sub, hour, quiet);
+      ls.setItem(KEY, JSON.stringify({ hour, quiet }));
       return true;
     },
     async disable() {
@@ -80,7 +83,7 @@ export function createPush({ url, anonKey, auth, vapidKey, ls, nav = typeof navi
         const reg = await registration();
         const sub = await reg.pushManager.getSubscription();
         if (!sub) { ls.removeItem(KEY); return; } // permission revoked or subscription gone
-        await send(sub, s.hour);
+        await send(sub, s.hour, Array.isArray(s.quiet) ? s.quiet : []);
       } catch { /* try again next time the app opens */ }
     },
   };

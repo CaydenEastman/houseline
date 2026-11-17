@@ -56,7 +56,21 @@ function buildResult(ctx, { skip = false } = {}) {
     for (const v of W.newVehicles) s = addVehicle(s, { name: v.name, odometer: v.odometer }, newId, today);
   }
   s = { ...s, profile: { ...s.profile, setupDone: true } };
-  return addMissingTasks(s, today);
+  const res = addMissingTasks(s, today);
+  if (skip || !W.newVehicles.length) return res;
+  // A car added here has no service history yet. Count each mileage reminder from the last oil change if they know it,
+  // otherwise from today's odometer, so a brand-new car does not open with "oil change overdue".
+  const byName = new Map(W.newVehicles.map((v) => [v.name.toLowerCase(), v]));
+  const baseline = new Map(res.state.vehicles.filter((v) => byName.has(v.name.toLowerCase())).map((v) => [v.id, byName.get(v.name.toLowerCase())]));
+  const fix = (t) => {
+    const nv = t.vehicleId && baseline.get(t.vehicleId);
+    if (!nv || (t.kind || "interval") !== "mileage" || t.lastDoneOdometer != null) return t;
+    const oil = /\boil\b/i.test(t.title) && nv.lastOil != null;
+    return { ...t, lastDoneOdometer: oil ? nv.lastOil : nv.odometer };
+  };
+  const added = res.added.map(fix);
+  const byId = new Map(added.map((t) => [t.id, t]));
+  return { state: { ...res.state, tasks: res.state.tasks.map((t) => byId.get(t.id) || t) }, added };
 }
 
 export function renderWizard(container, ctx, opts = {}) {
@@ -95,17 +109,25 @@ export function renderWizard(container, ctx, opts = {}) {
     if (!nameEl) return true;
     const name = nameEl.value.trim();
     const odoRaw = odoEl.value.trim();
-    W.draft = { name: nameEl.value, odo: odoEl.value }; // kept so a validation error never empties the boxes
+    const oilEl = container.querySelector("#w-voil");
+    const oilRaw = oilEl ? oilEl.value.trim() : "";
+    W.draft = { name: nameEl.value, odo: odoEl.value, oil: oilEl ? oilEl.value : "" }; // kept so a validation error never empties the boxes
     if (!name && !odoRaw) { W.draft = null; return !required; }
     if (!name) { fail("Give the vehicle a name, like “Family minivan”.", "#w-vname"); return false; }
     const odometer = odoRaw === "" ? 0 : Number(odoRaw);
     if (!Number.isInteger(odometer) || odometer < 0 || odometer > 5000000) {
       fail("Odometer must be a whole number of miles, 0 or more.", "#w-vodo"); return false;
     }
+    let lastOil = null;
+    if (oilRaw !== "") {
+      lastOil = Number(oilRaw);
+      if (!Number.isInteger(lastOil) || lastOil < 0) { fail("Miles at the last oil change must be a whole number.", "#w-voil"); return false; }
+      if (lastOil > odometer) { fail("The last oil change can't be at a higher mileage than the odometer now.", "#w-voil"); return false; }
+    }
     if (name.length > 80) { fail("Vehicle name is too long.", "#w-vname"); return false; }
     const dup = [...ctx.getState().vehicles, ...W.newVehicles].some((v) => v.name.toLowerCase() === name.toLowerCase());
     if (dup) { fail("You already have a vehicle with that name.", "#w-vname"); return false; }
-    W.newVehicles.push({ name, odometer });
+    W.newVehicles.push({ name, odometer, lastOil });
     W.draft = null;
     W.error = "";
     return true;
@@ -154,6 +176,10 @@ export function renderWizard(container, ctx, opts = {}) {
           h("div", { class: "field" },
             h("label", { for: "w-vodo", text: "Current odometer (miles)" }),
             h("input", { id: "w-vodo", type: "number", inputmode: "numeric", min: "0", step: "1", placeholder: "e.g. 84500", value: W.draft ? W.draft.odo : "" }))),
+        h("div", { class: "field" },
+          h("label", { for: "w-voil", text: "Odometer at the last oil change (optional)" }),
+          h("input", { id: "w-voil", type: "number", inputmode: "numeric", min: "0", step: "1", placeholder: "e.g. 82000", value: W.draft ? W.draft.oil : "" }),
+          h("p", { class: "hint", text: "Not sure? Leave it blank and the mileage reminders start counting from today, so nothing shows as overdue on day one." })),
         h("button", { type: "submit", class: "btn", text: "+ Add this vehicle" })));
   }
 

@@ -108,3 +108,11 @@ Fixed already: completion id collisions between phones, edits made while signed 
 - [ ] Tour/tab wording ("You" is vague), calendar legend symbols, jargon (inventory, vendors).
 - [ ] Reminder offer after the first Done.
 - [ ] Rare races: history shards written without a conditional write; cached household id after leaving on another device; import limits for tags/links.
+
+## 10. Done after the app review (v8)
+- [x] Invite by link; setup asks the last oil change; plainer names (More, Appliances, Contacts); one-time reminder offer after the first Done
+- [x] Photo cleanup when joining another household; stale household id retried after 403; done beats snooze in merges; import limits for tags, links and history text
+- [x] Quiet days for reminders (needs migration `push_quiet_days`, applied); privacy page (`privacy.html`)
+- [x] search_path: checked, safe as is (see schema.sql note)
+- [ ] Email digest: needs an email-service account and key from the owner
+- [ ] Test on real phones (install, push, share invite link)

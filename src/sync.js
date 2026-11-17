@@ -156,6 +156,8 @@ function mergeFields(b, m, t) {
     out.lastDone = src.lastDone;
     if ("lastDoneOdometer" in src) out.lastDoneOdometer = src.lastDoneOdometer;
   }
+  // One phone finished the task while another snoozed it: finishing wins, as it does on a single phone.
+  if ("lastDone" in out && out.lastDone !== b.lastDone && out.snoozedUntil != null && "snoozedUntil" in out) out.snoozedUntil = null;
   return out;
 }
 

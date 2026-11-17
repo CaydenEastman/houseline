@@ -324,7 +324,7 @@ function buildGrid(ctx, rerender) {
     h("p", { class: "sr-only", role: "status", "aria-live": "polite", text: announce }));
 
   const legend = h("ul", { class: "v-legend", "aria-label": "Legend" },
-    [["!", "overdue or expired"], ["◐", "due soon"], ["○", "on track / projected"], ["z", "snoozed"], ["▲", "supply expires"], ["■", "warranty ends"], ["✓", "done"], ["–", "skipped"]]
+    [["!", "overdue or expired"], ["◐", "coming up soon"], ["○", "not due yet"], ["z", "snoozed"], ["▲", "emergency supply expires"], ["■", "warranty ends"], ["✓", "done"], ["–", "skipped"]]
       .map(([sym, t]) => h("li", {}, h("span", { class: "v-chip v-st-none", "aria-hidden": "true", text: sym }), ` ${t}`)));
 
   return h("section", { class: "v-cal", "aria-labelledby": "v-cal-grid-h" },

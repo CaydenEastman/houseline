@@ -36,21 +36,21 @@ export const homeView = {
     const open = (s.supplies || []).length;
     tiles(container, ctx, "Home", "Everything you keep track of.", [
       { id: "tasks", icon: "✅", label: "All tasks", sub: plural((s.tasks || []).length, "task"), onclick: go(ctx, "tasks"), badge: badge(sum.overdue, "overdue", `${sum.overdue} overdue`) },
-      { id: "inventory", icon: "\u{1F4E6}", label: "Inventory", sub: (s.items || []).length ? `${plural(s.items.length, "item")}, warranties and manuals` : "Add appliances to keep warranties and manuals handy", onclick: go(ctx, "inventory"), badge: badge(warr, "soon", `${warr} warranty alerts`) },
+      { id: "inventory", icon: "\u{1F4E6}", label: "Appliances", sub: (s.items || []).length ? `${plural(s.items.length, "item")}, warranties and manuals` : "Add appliances to keep warranties and manuals handy", onclick: go(ctx, "inventory"), badge: badge(warr, "soon", `${warr} warranty alerts`) },
       { id: "vehicles", icon: "\u{1F697}", label: "Vehicles", sub: (s.vehicles || []).length ? `${plural(s.vehicles.length, "vehicle")} and mileage` : "Add a car to track mileage and service", onclick: go(ctx, "vehicles"), badge: badge(milesDue, "overdue", `${milesDue} overdue by mileage`) },
-      { id: "vendors", icon: "\u{1F4DE}", label: "Vendors", sub: (s.vendors || []).length ? `${plural(s.vendors.length, "contact")}: plumber, electrician and more` : "Save your plumber, electrician and other contacts", onclick: go(ctx, "vendors") },
+      { id: "vendors", icon: "\u{1F4DE}", label: "Contacts", sub: (s.vendors || []).length ? `${plural(s.vendors.length, "contact")}: plumber, electrician and more` : "Save your plumber, electrician and other contacts", onclick: go(ctx, "vendors") },
       { id: "emergency", icon: "\u{1F6DF}", label: "Emergency", sub: `${open ? plural(open, "supply item") + " and " : ""}plans and contacts`, onclick: go(ctx, "emergency"), badge: badge(supplyIssues, "soon", `${supplyIssues} supply items expired or expiring`) },
     ]);
   },
 };
 
 export const youView = {
-  id: "you", label: "You",
+  id: "you", label: "More",
   render(container, ctx) {
     const s = ctx.getState();
     const n = (s.completions || []).length;
     const acct = ctx.account ? ctx.account() : null;
-    tiles(container, ctx, "You", "Your history, numbers and settings.", [
+    tiles(container, ctx, "More", "Your history, spending and settings.", [
       ...(acct ? [{ id: "account", icon: "\u{1F512}", label: "Account", sub: acct.signedIn ? `Signed in${acct.email ? " as " + acct.email : ""}` : "Sign in to back up and sync your phones", onclick: (e) => ctx.openAccount(e && e.currentTarget) }] : []),
       { id: "history", icon: "\u{1F4D6}", label: "History", sub: `${n === 1 ? "1 entry" : `${n} entries`} of what you've done`, onclick: go(ctx, "history") },
       { id: "insights", icon: "\u{1F4CA}", label: "Insights", sub: "Spending, yearly upkeep and your home binder", onclick: go(ctx, "insights") },

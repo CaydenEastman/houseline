@@ -56,6 +56,11 @@ async function supabaseBackend(localStorage) {
 
 async function start() {
   const { localStorage, persistent } = getLocalStorage();
+  try { // an invite link (?join=CODE): remember the code through the sign-in redirect, and tidy the address bar
+    const { joinFromSearch, rememberJoin } = await import("./invite.js");
+    const code = joinFromSearch(location.search);
+    if (code) { rememberJoin(localStorage, code); history.replaceState(null, "", location.pathname + location.hash); }
+  } catch { /* links are optional */ }
   // window.claude may be absent (plain static hosting); sync.js degrades to local mode.
   const claude = window.claude && typeof window.claude.use === "function"
     ? window.claude
