@@ -1004,7 +1004,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const exportNow = async () => {
       const text = guard(() => exportJSON(state));
       if (text == null) return;
-      const ok = await saveFile(`man-of-the-house-${today}.json`, text, "application/json");
+      const ok = await saveFile(`houseline-${today}.json`, text, "application/json");
       if (ok) { toast("Exported a backup file."); return; }
       const area = h("textarea", { id: "s-export", rows: "4", readonly: true });
       area.value = text;
@@ -1071,7 +1071,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", id: "s-tour", text: "Show the quick tour", onclick: () => { closeDialog(els.settings); openTour(null); } }),
           h("button", { type: "button", class: "btn", id: "s-report", text: "Copy info for a problem report", onclick: async () => {
             const w = doc.defaultView; const nav = (w && w.navigator) || {};
-            const info = `Man of the House ${APP_VERSION}\n${nav.userAgent || "unknown browser"}\nmode: ${store.mode}${viewOnly ? ", view only" : ""}\nscreen: ${(w && w.innerWidth) || "?"}x${(w && w.innerHeight) || "?"}`;
+            const info = `Houseline ${APP_VERSION}\n${nav.userAgent || "unknown browser"}\nmode: ${store.mode}${viewOnly ? ", view only" : ""}\nscreen: ${(w && w.innerWidth) || "?"}x${(w && w.innerHeight) || "?"}`;
             try { await nav.clipboard.writeText(info); toast("Copied. Paste it into your message and say what went wrong."); } catch { toast("Couldn't copy. Take a screenshot instead.", { error: true }); }
           } })),
         h("p", { class: "hint" }, "Something broken or confusing? Copy the info, then ", h("a", { href: "https://github.com/CaydenEastman/man-of-the-house/issues/new", target: "_blank", rel: "noopener", text: "describe it here" }), ".")),
@@ -1398,7 +1398,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
             h("div", { class: "row-panel-actions wrap-actions" },
               h("button", { type: "button", class: "btn primary solid", id: "s-invite-link", text: "Share invite link", onclick: async () => {
                 const l = doc.defaultView.location; const link = inviteLink(l.origin + l.pathname, info.invite.code); const nav = doc.defaultView.navigator || {};
-                try { if (typeof nav.share === "function") { await nav.share({ title: "Man of the House", text: "Join our household in Man of the House:", url: link }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+                try { if (typeof nav.share === "function") { await nav.share({ title: "Houseline", text: "Join our household in Houseline:", url: link }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
                 try { await nav.clipboard.writeText(link); toast("Link copied. Paste it into a message."); } catch { toast("Couldn't copy the link. Use the code instead.", { error: true }); }
               } }),
               h("button", { type: "button", class: "btn", id: "s-invite-copy", text: "Copy code", onclick: async () => { try { await doc.defaultView.navigator.clipboard.writeText(info.invite.code); toast("Copied."); } catch { toast("Select the code and copy it.", { error: true }); } } }),
@@ -1471,7 +1471,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       dl.disabled = true; status.textContent = "Collecting your data and photos…";
       try {
         const text = await exportEverything(state, (id) => store.getPhoto(id), exportJSON);
-        const ok = await saveFile(`man-of-the-house-everything-${today}.json`, text, "application/json");
+        const ok = await saveFile(`houseline-everything-${today}.json`, text, "application/json");
         status.textContent = ok ? "Downloaded." : "Downloads are unavailable here. Use Export backup in Backup below.";
       } catch (e) { status.textContent = errMsg(e, "Couldn't collect your data."); }
       finally { dl.disabled = false; }
@@ -1530,7 +1530,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const ls = doc.defaultView.localStorage;
     const skip = () => { try { ls.setItem("motH.welcomed", "1"); } catch { /* ignore */ } render(); const t = els.main; t.setAttribute("tabindex", "-1"); t.focus(); };
     els.wizard.replaceChildren(h("section", { class: "wizard-card welcome", "aria-labelledby": "welcome-h" },
-      h("h2", { id: "welcome-h", tabindex: "-1", text: "Welcome to Man of the House" }),
+      h("h2", { id: "welcome-h", tabindex: "-1", text: "Welcome to Houseline" }),
       h("p", { class: "hint", text: "Already have an account? Sign in and your tasks load right away. New here? Signing in keeps your data safe in the cloud and lets you share it with your family." }),
       accountPanel(),
       h("div", { class: "dialog-actions" },

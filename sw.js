@@ -1,5 +1,5 @@
-/* Man of the House service worker: works offline, always prefers fresh files when online. */
-const VERSION = "v19";
+/* Houseline service worker: works offline, always prefers fresh files when online. */
+const VERSION = "v21";
 const CACHE = "moth-" + VERSION;
 const SHELL = [
   "./", "index.html", "privacy.html", "styles.css", "styles-views.css", "manifest.webmanifest",
@@ -35,7 +35,7 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { /* plain-text or empty push */ }
-  e.waitUntil(self.registration.showNotification(d.title || "Man of the House", {
+  e.waitUntil(self.registration.showNotification(d.title || "Houseline", {
     body: d.body || "Something needs doing around the house.",
     icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "moth-daily", data: { url: d.url || "./" },
   }));

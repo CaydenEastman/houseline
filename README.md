@@ -1,4 +1,4 @@
-# Man of the House
+# Houseline
 
 A home maintenance reminder app for car, house, yard, and emergency prep. Plain HTML, CSS, and JavaScript modules. No build step and no dependencies. It installs on a phone like a normal app (PWA) and works offline.
 

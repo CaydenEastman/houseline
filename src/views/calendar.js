@@ -48,7 +48,7 @@ function buildExport(ctx, rerender) {
   const say = (m, fk) => { S.msg = m; S.pending = fk; rerender(); };
 
   const make = {
-    ics: () => ICS.buildICS(st, today, { horizonDays: S.horizon, calName: "Man of the House" }),
+    ics: () => ICS.buildICS(st, today, { horizonDays: S.horizon, calName: "Houseline" }),
     csv: () => {
       if (typeof ICS.buildCalendarCSV !== "function") throw new Error("The Google Calendar export isn't available in this build.");
       return ICS.buildCalendarCSV(state, today, { horizonDays: S.horizon, includeSupplies: S.supplies, includeWarranties: S.warranties });

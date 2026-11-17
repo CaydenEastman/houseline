@@ -1,4 +1,4 @@
-// Man of the House: morning push reminders (deployed as the Supabase Edge Function "send-reminders", no JWT).
+// Houseline: morning push reminders (deployed as the Supabase Edge Function "send-reminders", no JWT).
 // Called once an hour by pg_cron with the shared secret in the x-cron-secret header. For each subscribed phone whose
 // local morning has arrived, it works out what is overdue or due today and sends a Web Push notification.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
         for (const s of subs ?? []) {
           try {
             await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-              JSON.stringify({ title: "Man of the House", body: `${n.who} joined your household.`, url: SITE }), { TTL: 24 * 3600, urgency: "normal" });
+              JSON.stringify({ title: "Houseline", body: `${n.who} joined your household.`, url: SITE }), { TTL: 24 * 3600, urgency: "normal" });
             res.sent++;
           } catch (e) {
             const code = (e as { statusCode?: number }).statusCode;
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          JSON.stringify({ title: "Man of the House", body: `${sum.message}`, url: SITE }),
+          JSON.stringify({ title: "Houseline", body: `${sum.message}`, url: SITE }),
           { TTL: 12 * 3600, urgency: "normal" },
         );
         out.sent++;

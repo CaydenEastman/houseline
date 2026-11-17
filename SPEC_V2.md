@@ -1,4 +1,4 @@
-# Man of the House v2 — Spec
+# Houseline v2 — Spec
 
 v2 extends v1 (see SPEC.md, still the baseline). Same stack: plain HTML/CSS/vanilla ES modules, no build, no deps, no external resources. Node ≥22 for tests (`npm test` = `node --test tests/*.test.mjs`).
 The app is hosted in a sandboxed page: no `alert/confirm/prompt`, no `window.print`, no `<a download>` (use the `downloads` capability), no service workers, no remote fetch. `window.claude.use(name)` returns a capability or `null`; always handle `null`.
@@ -89,9 +89,9 @@ Keep every v1 export. Extend (all pure, return NEW state, throw `Error` with cle
 - `MAX_STATE_BYTES = 900_000`; `saveState` throws a clear error above it.
 
 ## src/ics.js  (owner: CORE-B)
-- `buildICS(state, today, { horizonDays = 400, calName = "Man of the House" } = {})` → string, RFC 5545: CRLF line endings, lines folded at 75 octets (UTF-8 aware), TEXT escaping (`\\ ; , \n`), stable `UID: <id>@man-of-the-house`, `DTSTAMP`, all-day `DTSTART;VALUE=DATE`, `VALARM` display alarm `TRIGGER:-P1D` (supply/warranty events `-P7D`).
+- `buildICS(state, today, { horizonDays = 400, calName = "Houseline" } = {})` → string, RFC 5545: CRLF line endings, lines folded at 75 octets (UTF-8 aware), TEXT escaping (`\\ ; , \n`), stable `UID: <id>@man-of-the-house`, `DTSTAMP`, all-day `DTSTART;VALUE=DATE`, `VALARM` display alarm `TRIGGER:-P1D` (supply/warranty events `-P7D`).
 - One VEVENT per task starting at its next due date (`dueInfo`; if snoozed, at max(due, snoozedUntil)): interval → `RRULE:FREQ=DAILY;INTERVAL=n`; annual → `RRULE:FREQ=YEARLY`; mileage → a single non-repeating event titled with "(estimated)". Plus one event per supply with `expires` and per item with `warrantyExpires` in range ("Warranty ends: …"). Skip tasks whose first date is beyond the horizon. Description includes category, notes, links.
-- `icsFilename(today)` → `man-of-the-house-YYYY-MM-DD.ics`.
+- `icsFilename(today)` → `houseline-YYYY-MM-DD.ics`.
 This is a one-time file import, NOT a live subscription; the Calendar view must say so.
 
 ## src/readiness.js  (owner: CORE-B)

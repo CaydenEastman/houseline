@@ -209,7 +209,7 @@ export function costByVehicle(state, year) {
 /** Plain-text weekly digest: what's overdue, due this week, expiring, season tip. Used by the copy/email button and scheduled digests. */
 export function digestText(state, today, nameOf = (id) => id) {
   const a = agenda(state, today, 7);
-  const lines = [`Man of the House: week of ${today}`, ""];
+  const lines = [`Houseline: week of ${today}`, ""];
   const fmt = (r) => `- ${r.task.title}${r.task.assignee ? ` (${nameOf(r.task.assignee)})` : ""}: ${r.bucket === "overdue" ? `${-r.days} day${-r.days === 1 ? "" : "s"} overdue` : r.days === 0 ? "due today" : `due in ${r.days} day${r.days === 1 ? "" : "s"}`}`;
   if (a.overdue.length) lines.push("OVERDUE", ...a.overdue.map(fmt), "");
   if (a.today.length || a.week.length) lines.push("DUE THIS WEEK", ...[...a.today, ...a.week].map(fmt), "");

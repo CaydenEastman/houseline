@@ -55,7 +55,7 @@ export async function maybeNotify({ ls, state, today, reg }) {
     if (!message) return false;
     const r = reg || (navigator.serviceWorker && await navigator.serviceWorker.getRegistration());
     if (!r || !r.showNotification) return false;
-    await r.showNotification("Man of the House", { body: message, icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "moth-daily" });
+    await r.showNotification("Houseline", { body: message, icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "moth-daily" });
     ls.setItem(KEY_DAY, today);
     return true;
   } catch { return false; }

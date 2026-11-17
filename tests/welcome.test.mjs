@@ -22,28 +22,28 @@ test("first launch, cloud configured, signed out: sign-in comes first, with a wa
   const doc = await open({ a: auth(), st: freshState() });
   const w = doc.getElementById("wizard");
   assert.equal(w.hidden, false);
-  assert.match(w.textContent, /Welcome to Man of the House/);
+  assert.match(w.textContent, /Welcome to Houseline/);
   assert.match(w.textContent, /Email me a sign-in link/);
   const skip = w.querySelectorAll("button").find((b) => /without an account/i.test(b.textContent));
   assert.ok(skip);
   skip.click(); await sleep(10);
-  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Man of the House/);
+  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Houseline/);
   assert.match(doc.getElementById("wizard").textContent, /household|vehicle|setup/i);
 });
 test("signed in on first launch: no welcome screen (the account's data or the setup wizard shows)", async () => {
   const doc = await open({ a: auth({ user: { id: "u1", email: "a@b.co" } }), st: freshState() });
-  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Man of the House/);
+  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Houseline/);
 });
 test("no cloud project, or an existing set-up app: no welcome screen", async () => {
   let doc = await open({ a: undefined, st: freshState() });
-  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Man of the House/);
+  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Houseline/);
   doc = await open({ a: auth(), st: mkState({ tasks: [mkTask({ id: "a", title: "A", lastDone: "2026-01-01", intervalDays: 30 })] }) });
   assert.equal(doc.getElementById("app").hidden, false);
 });
 test("choosing 'without an account' is remembered", async () => {
   const ls = fakeLS({ "motH.tour": "1", "motH.welcomed": "1" });
   const doc = await open({ a: auth(), st: freshState(), ls });
-  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Man of the House/);
+  assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Houseline/);
 });
 
 test("view-only member: banner shows and no change is saved", async () => {

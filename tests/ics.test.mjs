@@ -28,7 +28,7 @@ test('calendar skeleton: CRLF only, VERSION, PRODID, BEGIN/END, balanced events'
   assert.equal((s.match(/BEGIN:VEVENT/g) || []).length, (s.match(/END:VEVENT/g) || []).length);
 });
 test('default and custom calendar name', () => {
-  assert.ok(lines(buildICS(mkState(), T)).includes('X-WR-CALNAME:Man of the House'));
+  assert.ok(lines(buildICS(mkState(), T)).includes('X-WR-CALNAME:Houseline'));
   assert.ok(lines(buildICS(mkState(), T, { calName: 'Our, Home; 1' })).some((l) => l.startsWith('X-WR-CALNAME:') && l.includes('Our\\, Home\\; 1')));
 });
 test('empty state yields a valid empty calendar', () => {
@@ -161,6 +161,6 @@ test('many tasks (stress): 500 tasks build quickly and one VEVENT each', () => {
   assert.ok(Date.now() - t0 < 3000); assert.equal(events(s).length, 500);
 });
 test('icsFilename', () => {
-  assert.equal(icsFilename('2026-06-15'), 'man-of-the-house-2026-06-15.ics');
-  assert.equal(icsFilename('2024-02-29'), 'man-of-the-house-2024-02-29.ics');
+  assert.equal(icsFilename('2026-06-15'), 'houseline-2026-06-15.ics');
+  assert.equal(icsFilename('2024-02-29'), 'houseline-2024-02-29.ics');
 });

@@ -37,7 +37,7 @@ Owner: You, Settings, Account, Household, **Invite someone**, then send the 8-ch
 Supabase's built-in sender is for testing: it is limited to a few emails an hour and may land in spam. For real use:
 1. Pick a sender. **Resend** is the simplest (free tier 3,000 emails/month). You need a domain you own so emails come from e.g. `hello@yourdomain.com`; without a domain, stay on the built-in sender.
 2. In the sender, add your domain and the DNS records it shows, then create an API key (SMTP password).
-3. In Supabase: **Authentication, Emails (or Project Settings, Authentication), SMTP Settings**, turn on **Custom SMTP**, and enter the sender address, name ("Man of the House"), host (`smtp.resend.com`), port `465`, username `resend`, and the API key as the password.
+3. In Supabase: **Authentication, Emails (or Project Settings, Authentication), SMTP Settings**, turn on **Custom SMTP**, and enter the sender address, name ("Houseline"), host (`smtp.resend.com`), port `465`, username `resend`, and the API key as the password.
 4. Authentication, Rate Limits: raise "emails per hour" to something sensible (e.g. 30).
 5. Send yourself a sign-in link to test.
 

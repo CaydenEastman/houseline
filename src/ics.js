@@ -78,7 +78,7 @@ function uidSafe(id) {
 
 export function icsFilename(today) {
   isoMs(today);
-  return `man-of-the-house-${today}.ics`;
+  return `houseline-${today}.ics`;
 }
 
 /** Shared event planning for ICS/CSV: tasks -> {task, start, kind}. */
@@ -93,7 +93,7 @@ function taskStart(task, state, today, horizon) {
 
 export function csvFilename(today) {
   isoMs(today);
-  return `man-of-the-house-${today}.csv`;
+  return `houseline-${today}.csv`;
 }
 
 function csvCell(v) {
@@ -156,7 +156,7 @@ export function buildCalendarCSV(state, today, opts = {}) {
 }
 
 export function buildICS(state, today, opts = {}) {
-  const { horizonDays = 400, calName = "Man of the House", includeSupplies = true, includeWarranties = true } = opts;
+  const { horizonDays = 400, calName = "Houseline", includeSupplies = true, includeWarranties = true } = opts;
   if (typeof logic.dueInfo !== "function") throw new Error("ics: logic.dueInfo is not available");
   isoMs(today);
   if (!Number.isInteger(horizonDays) || horizonDays < 0) throw new Error("horizonDays must be a non-negative integer");
@@ -222,7 +222,7 @@ export function buildICS(state, today, opts = {}) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Man of the House//Maintenance Reminders//EN",
+    "PRODID:-//Houseline//Maintenance Reminders//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeText(calName)}`,

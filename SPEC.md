@@ -1,4 +1,4 @@
-# Man of the House — Prototype Spec
+# Houseline — Prototype Spec
 
 A homeowner maintenance reminder app. Plain HTML/CSS/vanilla JS (ES modules), no build step, no dependencies. Data lives in localStorage. Must run by opening `index.html` (or via a static server).
 
@@ -50,7 +50,7 @@ Pure functions, take `today` as "YYYY-MM-DD" string param (never read the clock 
 - Imports only from the modules above, uses ONLY the API listed here.
 - Features: dashboard summary cards (overdue / due soon / ok), category tabs + "All", task list sorted by `sortTasks`, each row shows title, category badge, status color, "due in N days / N days overdue", [Done] button, edit, delete; Add Task form (title, category, interval days, notes); export/import JSON buttons; empty state; mobile-first responsive layout; keyboard accessible, proper labels, sufficient contrast, dark mode via `prefers-color-scheme`.
 - `today` computed once per render from the local date (not UTC).
-- Clean, friendly, practical visual design. Header: "Man of the House". No external fonts/CDNs.
+- Clean, friendly, practical visual design. Header: "Houseline". No external fonts/CDNs.
 - Escape all user text when rendering (no innerHTML with user data).
 
 ### tests/  (Agent: qa)

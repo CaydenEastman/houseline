@@ -1,4 +1,4 @@
--- Man of the House: Supabase schema. Paste into Supabase, SQL Editor, and run once.
+-- Houseline: Supabase schema. Paste into Supabase, SQL Editor, and run once.
 -- Safe to re-run: every statement is idempotent.
 
 -- A household owns one set of app data. Today each user gets one; sharing (invite another member) reuses these tables.

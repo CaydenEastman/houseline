@@ -1,4 +1,4 @@
-// Task templates for "Man of the House". Pure data + seeding helpers.
+// Task templates for "Houseline". Pure data + seeding helpers.
 // No clock reads: `today` is always a parameter.
 
 export const CATEGORIES = ["car", "house", "yard", "emergency"];
