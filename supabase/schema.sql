@@ -714,3 +714,41 @@ begin
 end $$;
 drop trigger if exists docs_keep_keys on public.docs;
 create trigger docs_keep_keys before update on public.docs for each row execute function public.docs_keep_keys();
+
+-- ---------------------------------------------------------------------------
+-- In-app feedback (More > Send feedback). Nobody can read or write the table directly;
+-- people send through submit_feedback (signed in, 10 a day each) and the owner reads it in the Supabase table editor.
+-- ---------------------------------------------------------------------------
+create table if not exists public.feedback (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  user_id uuid references auth.users(id) on delete set null,
+  kind text not null check (kind in ('problem', 'idea', 'question', 'other')),
+  message text not null check (char_length(message) between 1 and 2000),
+  contact_email text,
+  app_version text check (char_length(app_version) <= 20),
+  device text check (char_length(device) <= 200),
+  status text not null default 'new' check (status in ('new', 'planned', 'done', 'wont_do')),
+  notes text
+);
+alter table public.feedback enable row level security;
+revoke all on public.feedback from anon, authenticated;
+create index if not exists feedback_user_day on public.feedback (user_id, created_at);
+
+create or replace function public.submit_feedback(p_kind text, p_message text, p_contact boolean default false, p_version text default null, p_device text default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare uid uuid := auth.uid(); em text; m text := btrim(coalesce(p_message, ''));
+begin
+  if uid is null then raise exception 'Sign in first.'; end if;
+  if p_kind is null or p_kind not in ('problem', 'idea', 'question', 'other') then raise exception 'Pick what kind of feedback this is.'; end if;
+  if m = '' then raise exception 'Write a message first.'; end if;
+  if char_length(m) > 2000 then raise exception 'Please keep it under 2,000 characters.'; end if;
+  if (select count(*) from public.feedback f where f.user_id = uid and f.created_at > now() - interval '1 day') >= 10 then
+    raise exception 'You have sent a lot of feedback today. Please try again tomorrow.';
+  end if;
+  if coalesce(p_contact, false) then select u.email into em from auth.users u where u.id = uid; end if;
+  insert into public.feedback (user_id, kind, message, contact_email, app_version, device)
+  values (uid, p_kind, m, em, left(p_version, 20), left(p_device, 200));
+end $$;
+revoke all on function public.submit_feedback(text, text, boolean, text, text) from public, anon;
+grant execute on function public.submit_feedback(text, text, boolean, text, text) to authenticated;

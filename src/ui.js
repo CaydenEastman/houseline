@@ -235,6 +235,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     newId,
     openSettings: (trigger) => openSettings(trigger || null),
     openAccount: (trigger) => openAccount(trigger || null),
+    openFeedback: (trigger) => openFeedback(trigger || null),
     account: () => { const a = authOf(); if (!a) return null; const s = a.session(); return { signedIn: !!s, email: s && s.user ? s.user.email : null }; },
     markManyDone: (ids) => {
       let next = state, n = 0;
@@ -1074,7 +1075,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
             const info = `Houseline ${APP_VERSION}\n${nav.userAgent || "unknown browser"}\nmode: ${store.mode}${viewOnly ? ", view only" : ""}\nscreen: ${(w && w.innerWidth) || "?"}x${(w && w.innerHeight) || "?"}`;
             try { await nav.clipboard.writeText(info); toast("Copied. Paste it into your message and say what went wrong."); } catch { toast("Couldn't copy. Take a screenshot instead.", { error: true }); }
           } })),
-        h("p", { class: "hint" }, "Something broken or confusing? Copy the info, then ", h("a", { href: "https://github.com/CaydenEastman/houseline/issues/new", target: "_blank", rel: "noopener", text: "describe it here" }), ".")),
+        h("p", { class: "hint" }, "Something broken or confusing? Use More, Send feedback. Or copy the info, then ", h("a", { href: "https://github.com/CaydenEastman/houseline/issues/new", target: "_blank", rel: "noopener", text: "describe it here" }), ".")),
       h("section", { class: "set-sec" },
         h("h3", { text: "Look" }),
         h("div", { class: "field" }, h("label", { for: "s-theme", text: "Theme" }),
@@ -1138,6 +1139,48 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           h("button", { type: "button", class: "btn", text: "Import pasted text", onclick: () => { if (!paste.value.trim()) { toast("Paste some backup text first.", { error: true }); paste.focus(); return; } doImport(paste.value, "pasted text"); } }))),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
     ], { trigger, focus: "#settings-dialog-title" });
+  }
+
+  function openFeedback(trigger) {
+    const auth = authOf(); const api = hhApi();
+    const close = () => closeDialog(els.settings);
+    const head = h("div", { class: "dlg-head" }, h("h2", { id: "settings-dialog-title", tabindex: "-1", text: "Send feedback" }), h("button", { type: "button", class: "dlg-x", "aria-label": "Close feedback", text: "\u00d7", onclick: close }));
+    if (!auth || !api) { close(); return; }
+    if (!auth.session()) {
+      openDialog(els.settings, [head,
+        h("p", { class: "hint", text: "Please sign in first. It keeps spam out, and it lets you reach us from any phone." }),
+        h("div", { class: "dialog-actions" },
+          h("button", { type: "button", class: "btn", text: "Not now", onclick: close }),
+          h("button", { type: "button", class: "btn primary solid", id: "fb-signin", text: "Sign in", onclick: () => openAccount(null) }))], { trigger, focus: "#fb-signin" });
+      return;
+    }
+    const kind = h("select", { id: "fb-kind", "aria-label": "What kind of feedback" },
+      [["problem", "Something is broken or confusing"], ["idea", "An idea or request"], ["question", "A question"], ["other", "Something else"]].map(([v, t]) => h("option", { value: v, text: t })));
+    const msg = h("textarea", { id: "fb-msg", rows: "6", maxlength: "2000", placeholder: "What happened, or what would you like? The more detail, the better.", "aria-label": "Your message" });
+    const count = h("small", { class: "hint", id: "fb-count", text: "0 / 2000" });
+    msg.addEventListener("input", () => { count.textContent = `${msg.value.length} / 2000`; });
+    const contact = h("input", { type: "checkbox", id: "fb-contact" });
+    const status = h("p", { class: "form-error", id: "fb-status", role: "alert", text: "" });
+    const send = h("button", { type: "button", class: "btn primary solid", id: "fb-send", text: "Send" });
+    send.addEventListener("click", async () => {
+      const text = msg.value.trim();
+      if (!text) { status.textContent = "Write a message first."; msg.focus(); return; }
+      send.disabled = true; status.textContent = "";
+      try {
+        const w = doc.defaultView; const nav = (w && w.navigator) || {};
+        await api.feedback({ kind: kind.value, message: text, contact: contact.checked, version: APP_VERSION, device: `${nav.userAgent || "unknown"} ${(w && w.innerWidth) || "?"}x${(w && w.innerHeight) || "?"}` });
+        setKids(body, h("p", { class: "lead", role: "status", text: "Thank you. Your feedback was sent." }), h("p", { class: "hint", text: contact.checked ? "We may reply to the email on your account." : "We can't reply since you didn't share your email, but we read everything." }));
+        setKids(actions, h("button", { type: "button", class: "btn primary solid", id: "fb-done", text: "Close", onclick: close }));
+      } catch (e) { status.textContent = errMsg(e, "Couldn't send. Check your connection and try again."); send.disabled = false; }
+    });
+    const body = h("div", {},
+      h("div", { class: "field" }, h("label", { for: "fb-kind", text: "What is this about?" }), kind),
+      h("div", { class: "field" }, h("label", { for: "fb-msg", text: "Your message" }), msg, count),
+      h("label", { class: "check" }, contact, h("span", {}, h("strong", { text: "You can email me back" }), h("small", { text: "Shares your account email with us. Leave it off to stay anonymous." }))),
+      h("p", { class: "hint", text: "We add your app version and device type. We never send your tasks, notes or emergency info." }),
+      status);
+    const actions = h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn", text: "Cancel", onclick: close }), send);
+    openDialog(els.settings, [head, body, actions], { trigger, focus: "#fb-kind" });
   }
 
   function openAccount(trigger) {

@@ -70,6 +70,7 @@ export function createHousehold({ url, anonKey, auth, fetchImpl }) {
     privateSet: (pid, d) => rpc("set_private_person", { pid, d }),
     privateDelete: (pid) => rpc("delete_private_person", { pid }),
     snapshots: () => rpc("list_snapshots"),
+    feedback: ({ kind, message, contact, version, device }) => rpc("submit_feedback", { p_kind: kind, p_message: message, p_contact: !!contact, p_version: version || null, p_device: device || null }),
     restoreSnapshot: (day) => rpc("restore_snapshot", { day }),
 
     /** Delete this household's photo files (only ever called when the person is alone in it). */

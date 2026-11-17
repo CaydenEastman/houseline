@@ -55,6 +55,7 @@ export const youView = {
       ...(acct ? [{ id: "account", icon: "\u{1F512}", label: "Account", sub: acct.signedIn ? `Signed in${acct.email ? " as " + acct.email : ""}` : "Sign in to back up and sync your phones", onclick: (e) => ctx.openAccount(e && e.currentTarget) }] : []),
       { id: "history", icon: "\u{1F4D6}", label: "History", sub: `${n === 1 ? "1 entry" : `${n} entries`} of what you've done`, onclick: go(ctx, "history") },
       { id: "insights", icon: "\u{1F4CA}", label: "Insights", sub: "Spending, yearly upkeep and your home binder", onclick: go(ctx, "insights") },
+      ...(acct && ctx.openFeedback ? [{ id: "feedback", icon: "\u{1F4AC}", label: "Send feedback", sub: "Report a problem or share an idea", onclick: (e) => ctx.openFeedback(e && e.currentTarget) }] : []),
       { id: "settings", icon: "⚙️", label: "Settings", sub: "Reminders, theme, text size, backup, import and help", onclick: (e) => ctx.openSettings(e && e.currentTarget) },
     ]);
   },
