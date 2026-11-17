@@ -1,5 +1,5 @@
 /* Houseline service worker: works offline, always prefers fresh files when online. */
-const VERSION = "v24";
+const VERSION = "v25";
 const CACHE = "moth-" + VERSION;
 const SHELL = [
   "./", "index.html", "privacy.html", "styles.css", "styles-views.css", "manifest.webmanifest",

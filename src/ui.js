@@ -1248,11 +1248,21 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       if (s) {
         const out = h("button", { type: "button", class: "btn", id: "s-signout", text: "Sign out" });
         out.addEventListener("click", async () => {
-          const ok = await confirmDialog({ title: "Sign out?", message: "Your data stays safe in your account. This phone keeps its own copy until you sign in again, and nothing is shared with the next person who signs in here.", confirmLabel: "Sign out" });
+          const ok = await confirmDialog({ title: "Sign out?", message: "Your data stays safe in your account. Signing out also erases this phone's copy, so the next person who opens the app here sees nothing of yours. Sign in again to bring it all back.", confirmLabel: "Sign out" });
           if (!ok) return;
+          const ls = doc.defaultView.localStorage;
+          // Get any last edits to the account first. Erasing a copy the cloud never received would lose it.
+          try { await store.flush(); } catch { /* checked below */ }
+          let unsent = false;
+          try { unsent = ls.getItem("motH.dirty") === "1"; } catch { /* ignore */ }
+          if (unsent && !(await confirmDialog({ title: "Some changes haven't synced", message: "The latest changes on this phone haven't reached your account yet (maybe you're offline). If you sign out now, they will be lost. Download your data first if you want to keep them.", confirmLabel: "Sign out and erase", danger: true }))) return;
           try { const push = doc.defaultView.motPush; if (push && push.hour() != null) await push.disable(); } catch { /* the server drops dead subscriptions on its own */ }
           await auth.signOut();
-          try { doc.defaultView.localStorage.removeItem("motH.viewOnly"); } catch { /* ignore */ }
+          // Erase this phone's copy (tasks, photos, change history, restore points), but keep device-only looks like theme.
+          const keep = {};
+          for (const k of ["motH.look", "motH.tour", "motH.remindAsked", "motH.probe"]) { try { const v = ls.getItem(k); if (v != null) keep[k] = v; } catch { /* ignore */ } }
+          clearLocalCache(ls, "motH.v1", { everything: true });
+          for (const k of Object.keys(keep)) { try { ls.setItem(k, keep[k]); } catch { /* ignore */ } }
           doc.defaultView.location.reload();
         });
         setKids(wrap, 
