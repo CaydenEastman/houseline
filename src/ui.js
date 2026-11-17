@@ -1418,13 +1418,36 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     }
   }
 
+  // First launch: sign in first. Someone with an account gets their data straight away; everyone else can carry on without one.
+  function needsWelcome() {
+    try {
+      const a = authOf(); const ls = doc.defaultView.localStorage;
+      if (!a || !a.session || a.session() || ls.getItem("motH.welcomed")) return false;
+      return true;
+    } catch { return false; }
+  }
+  function renderWelcome() {
+    const ls = doc.defaultView.localStorage;
+    const skip = () => { try { ls.setItem("motH.welcomed", "1"); } catch { /* ignore */ } render(); const t = els.main; t.setAttribute("tabindex", "-1"); t.focus(); };
+    els.wizard.replaceChildren(h("section", { class: "wizard-card welcome", "aria-labelledby": "welcome-h" },
+      h("h2", { id: "welcome-h", tabindex: "-1", text: "Welcome to Man of the House" }),
+      h("p", { class: "hint", text: "Already have an account? Sign in and your tasks load right away. New here? Signing in keeps your data safe in the cloud and lets you share it with your family." }),
+      accountPanel(),
+      h("div", { class: "dialog-actions" },
+        h("button", { type: "button", class: "btn", id: "welcome-skip", text: "Continue without an account", onclick: skip })),
+      h("p", { class: "hint", text: "Without an account everything stays on this phone. You can sign in later from More, then Account." })));
+  }
+
   function render() {
     today = localToday();
     const snap = describeFocus(doc.activeElement);
     const inShell = snap && (els.app.contains(snap.el) || els.wizard.contains(snap.el));
     const needsWizard = !state.profile || state.profile.setupDone === false || rerunning;
     els.headerActions.hidden = needsWizard;
-    if (needsWizard) {
+    if (needsWizard && !rerunning && needsWelcome()) {
+      els.app.hidden = true; els.wizard.hidden = false;
+      renderWelcome();
+    } else if (needsWizard) {
       els.app.hidden = true; els.wizard.hidden = false;
       renderWizard(els.wizard, ctx, { rerun: rerunning, onClose: () => {
         const firstRun = !rerunning;
