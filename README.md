@@ -53,7 +53,7 @@ Service workers and install prompts need `localhost` or HTTPS.
 ## Put it online (GitHub Pages)
 
 1. Repo **Settings, Pages**, source "Deploy from a branch", branch `main`, folder `/ (root)`.
-2. Open `https://<user>.github.io/man-of-the-house/`.
+2. Open `https://<user>.github.io/houseline/`.
 3. On the phone: iPhone Safari, Share, **Add to Home Screen**. Android Chrome, menu, **Install app**.
 
 All paths are relative, so it works from a subfolder. To ship an update, push to `main`; when the phone is online it picks up the new files on the next open. If you add or rename a file under `src/`, add it to the `SHELL` list in `sw.js` (a test fails if you forget).

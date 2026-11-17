@@ -1074,7 +1074,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
             const info = `Houseline ${APP_VERSION}\n${nav.userAgent || "unknown browser"}\nmode: ${store.mode}${viewOnly ? ", view only" : ""}\nscreen: ${(w && w.innerWidth) || "?"}x${(w && w.innerHeight) || "?"}`;
             try { await nav.clipboard.writeText(info); toast("Copied. Paste it into your message and say what went wrong."); } catch { toast("Couldn't copy. Take a screenshot instead.", { error: true }); }
           } })),
-        h("p", { class: "hint" }, "Something broken or confusing? Copy the info, then ", h("a", { href: "https://github.com/CaydenEastman/man-of-the-house/issues/new", target: "_blank", rel: "noopener", text: "describe it here" }), ".")),
+        h("p", { class: "hint" }, "Something broken or confusing? Copy the info, then ", h("a", { href: "https://github.com/CaydenEastman/houseline/issues/new", target: "_blank", rel: "noopener", text: "describe it here" }), ".")),
       h("section", { class: "set-sec" },
         h("h3", { text: "Look" }),
         h("div", { class: "field" }, h("label", { for: "s-theme", text: "Theme" }),

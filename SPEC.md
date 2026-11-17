@@ -60,7 +60,7 @@ Pure functions, take `today` as "YYYY-MM-DD" string param (never read the clock 
 
 ## Layout
 ```
-man-of-the-house/
+houseline/
   SPEC.md
   package.json        (lead creates)
   index.html
