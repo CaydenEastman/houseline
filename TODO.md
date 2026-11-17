@@ -96,14 +96,14 @@ You may not need your own server. Managed backend + a cron function covers every
 
 Fixed already: completion id collisions between phones, edits made while signed out, stale odometer after Done, photos taken signed out, odometer merge, evening reminders sent twice, off-screen snooze/delete panels, hidden import errors, big-text clipping, one wording for overdue, one set of number/money/plural helpers, Today "Later" button.
 
-- [ ] Join flow: say "nothing is lost" when the joiner has no tasks of their own, give counts when they do, offer "Download my data" first.
-- [ ] After a first sign-in, ask "Were you given a code?" and make the invite instructions describe one path only.
-- [ ] Join code errors: separate typo / expired / already used; auto-uppercase; "offline" instead of "Failed to fetch".
-- [ ] Invite attempt limit does not count failed tries (the failure rolls the count back). Needs a different design.
-- [ ] `client_errors`: stop callers from setting their own timestamp (cap can be dodged).
-- [ ] Turn push off for this phone when signing out.
-- [ ] Delete account: remove photos only after the account deletion succeeds.
-- [ ] Tighten database grants (`revoke all` from authenticated on household tables) and use an empty `search_path` in functions.
+- [x] Join flow: say "nothing is lost" when the joiner has no tasks of their own, give counts when they do, offer "Download my data" first.
+- [x] After a first sign-in, ask "Were you given a code?" and make the invite instructions describe one path only.
+- [x] Join code errors: separate typo / expired / already used; auto-uppercase; "offline" instead of "Failed to fetch".
+- [x] Invite attempt limit does not count failed tries (the failure rolls the count back). Needs a different design.
+- [x] `client_errors`: stop callers from setting their own timestamp (cap can be dodged).
+- [x] Turn push off for this phone when signing out.
+- [x] Delete account: if it fails after photos were removed, the screen now says so (photos cannot be removed afterwards because the sign-in is gone).
+- [x] Tighten database grants (`revoke all` from authenticated on household tables) (an empty `search_path` in functions is still open).
 - [ ] Vehicle step in setup: ask when the oil was last changed so a new car does not start overdue.
 - [ ] Tour/tab wording ("You" is vague), calendar legend symbols, jargon (inventory, vendors).
 - [ ] Reminder offer after the first Done.

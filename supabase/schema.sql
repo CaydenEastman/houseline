@@ -397,13 +397,7 @@ revoke all on public.client_errors from anon, authenticated;
 grant insert on public.client_errors to authenticated;
 drop policy if exists client_errors_insert on public.client_errors;
 create policy client_errors_insert on public.client_errors for insert to authenticated with check (user_id = auth.uid());
-create or replace function public.client_errors_cap() returns trigger language plpgsql security definer set search_path = '' as $$
-begin
-  if (select count(*) from public.client_errors e where e.user_id = new.user_id and e.at > now() - interval '1 day') >= 50 then
-    raise exception 'too many error reports';
-  end if;
-  return new;
-end $$;
+-- (the crash-report cap function is defined in "Safer joining and tighter permissions" below)
 drop trigger if exists client_errors_cap on public.client_errors;
 create trigger client_errors_cap before insert on public.client_errors for each row execute function public.client_errors_cap();
 revoke all on function public.client_errors_cap() from public, anon, authenticated;
@@ -411,3 +405,50 @@ revoke all on function public.client_errors_cap() from public, anon, authenticat
 -- Schedules (run once; pg_cron and pg_net are enabled in the dashboard under Database, Extensions):
 --   select cron.schedule('nightly-snapshots', '15 9 * * *', 'select public.take_snapshots()');
 --   select cron.schedule('prune-client-errors', '30 9 * * *', $$delete from public.client_errors where at < now() - interval '30 days'$$);
+
+-- ===== Safer joining and tighter permissions =====
+-- accept_invite_v2 answers with a result instead of raising, so a failed try is still counted by the hourly limit
+-- (a raised error rolls back the count along with everything else), and it says WHY a code failed.
+create or replace function public.accept_invite_v2(invite_code text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare mine uuid; inv public.household_invites; norm text;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from public.invite_attempts where at < now() - interval '1 day';
+  if (select count(*) from public.invite_attempts a where a.user_id = auth.uid() and a.at > now() - interval '1 hour') >= 10 then
+    return jsonb_build_object('error', 'throttled', 'message', 'Too many tries. Wait an hour and try again.');
+  end if;
+  insert into public.invite_attempts (user_id) values (auth.uid());
+  norm := upper(regexp_replace(coalesce(invite_code, ''), '[^A-Za-z0-9]', '', 'g'));
+  select * into inv from public.household_invites i where i.code = norm for update;
+  if not found then return jsonb_build_object('error', 'invalid', 'message', 'That code does not match. Check it for typos, or ask for a new one.'); end if;
+  if inv.used_at is not null then return jsonb_build_object('error', 'used', 'message', 'That code was already used. Ask for a new one.'); end if;
+  if inv.expires_at <= now() then return jsonb_build_object('error', 'expired', 'message', 'That code has expired. Ask for a new one.'); end if;
+  mine := public.ensure_household();
+  if mine = inv.household_id then return jsonb_build_object('error', 'already_member', 'message', 'You are already in this household.'); end if;
+  if (select count(*) from public.household_members m where m.household_id = mine) > 1 then
+    return jsonb_build_object('error', 'in_shared', 'message', 'You are already in a shared household. Leave it first (You, Account, Household).');
+  end if;
+  if (select count(*) from public.household_members m where m.household_id = inv.household_id) >= 6 then
+    return jsonb_build_object('error', 'full', 'message', 'That household is full.');
+  end if;
+  delete from public.households where id = mine;  -- solo household: its documents and membership go with it
+  insert into public.household_members (household_id, user_id, role) values (inv.household_id, auth.uid(), 'member');
+  update public.household_invites set used_by = auth.uid(), used_at = now() where code = inv.code;
+  return jsonb_build_object('household_id', inv.household_id);
+end $$;
+revoke all on function public.accept_invite_v2(text) from public, anon;
+grant execute on function public.accept_invite_v2(text) to authenticated;
+
+-- A crash report always carries the real time: the daily cap cannot be dodged by sending back-dated rows.
+create or replace function public.client_errors_cap() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  new.at := now();
+  if (select count(*) from public.client_errors e where e.user_id = new.user_id and e.at > now() - interval '1 day') >= 50 then
+    raise exception 'too many error reports';
+  end if;
+  return new;
+end $$;
+
+-- Household tables are changed only through the functions above, never directly.
+revoke insert, update, delete, truncate, references, trigger on public.households, public.household_members from authenticated;

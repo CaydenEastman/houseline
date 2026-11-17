@@ -28,7 +28,7 @@ function api({ members = 1, role = "owner", failWith = null, listPages = [[{ nam
 test("every call is made as the signed-in user, and server error text reaches the person", async () => {
   const { h, calls } = api();
   await h.accept("abcd-2345");
-  assert.deepEqual(calls[0].slice(0, 3), ["POST", "/rest/v1/rpc/accept_invite", { invite_code: "abcd-2345" }]);
+  assert.deepEqual(calls[0].slice(0, 3), ["POST", "/rest/v1/rpc/accept_invite_v2", { invite_code: "abcd-2345" }]);
   assert.equal(calls[0][3], "Bearer tok");
   const bad = api({ failWith: { on: "accept_invite", message: "That code is not valid or has expired." } });
   await assert.rejects(() => bad.h.accept("x"), /not valid or has expired/);

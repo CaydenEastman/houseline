@@ -44,3 +44,7 @@ Supabase's built-in sender is for testing: it is limited to a few emails an hour
 ## Backups and crash reports
 
 `schema.sql` creates nightly snapshots (14 days, documents only) and a `client_errors` table. After running it, schedule the jobs (the commented `cron.schedule` lines at the end of that section): `nightly-snapshots` and `prune-client-errors`. To read recent crashes: `select created_at, version, page, message from client_errors order by created_at desc limit 20;`
+
+## Database checks
+
+`supabase/tests/join_and_limits.test.sql` checks joining, the hourly try limit, direct-write refusals and the crash-report cap. Paste it in the SQL editor after `schema.sql`; it ends with a deliberate error so nothing is kept, and the expected result text is at the top of the file.

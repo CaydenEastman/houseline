@@ -24,7 +24,7 @@ import { homeView, youView } from "./views/hubs.js";
 import { quickForm } from "./quickform.js";
 import * as pwa from "./pwa.js";
 import { helpPanel } from "./views/help.js";
-import { exportEverything, clearLocalCache } from "./household.js";
+import { exportEverything, clearLocalCache, joinImpact, householdError, formatCode } from "./household.js";
 
 export { localToday };
 
@@ -1098,6 +1098,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         out.addEventListener("click", async () => {
           const ok = await confirmDialog({ title: "Sign out?", message: "Your data stays safe in your account. This phone keeps its own copy until you sign in again, and nothing is shared with the next person who signs in here.", confirmLabel: "Sign out" });
           if (!ok) return;
+          try { const push = doc.defaultView.motPush; if (push && push.hour() != null) await push.disable(); } catch { /* the server drops dead subscriptions on its own */ }
           await auth.signOut();
           doc.defaultView.location.reload();
         });
@@ -1134,11 +1135,57 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   const hhApi = () => (doc.defaultView && doc.defaultView.motHousehold) || null;
   const reloadApp = () => doc.defaultView.location.reload();
 
+  // Joining replaces what is in this account with the household's data, so the warning says exactly what that means.
+  async function joinHousehold(codeText, { onFail } = {}) {
+    const api = hhApi();
+    const ls = doc.defaultView.localStorage;
+    const impact = joinImpact(state);
+    const ok = await confirmDialog(impact.untouched
+      ? { title: "Join this household?", message: "You haven't finished anything or added anything of your own yet, so nothing important is lost. You'll see their tasks from now on.", confirmLabel: "Join" }
+      : { title: "Join this household?", message: `Your ${impact.summary} will be replaced by theirs. Cancel and use Download all my data first if you want a copy.`, confirmLabel: "Join anyway", danger: true });
+    if (!ok) return false;
+    try { await api.accept(codeText); } catch (e) { (onFail || ((x) => toast(householdError(x), { error: true })))(e); return false; }
+    clearLocalCache(ls, "motH.v1");
+    toast("Joined. Loading the shared tasks…"); setTimeout(reloadApp, 600);
+    return true;
+  }
+
+  // Right after a first sign-in with nothing of their own yet: "were you given a code?" (asked once per person).
+  async function maybeAskForCode() {
+    try {
+      const api = hhApi(); const auth = authOf(); const ls = doc.defaultView.localStorage;
+      const s = auth && auth.session && auth.session();
+      if (!api || !s || !s.user) return;
+      const key = `motH.joinAsked.${s.user.id}`;
+      if (ls.getItem(key)) return;
+      if ((state.completions || []).length) { ls.setItem(key, "1"); return; }
+      const info = await api.info();
+      if (!info || !Array.isArray(info.members) || info.members.length !== 1) { ls.setItem(key, "1"); return; }
+      ls.setItem(key, "1");
+      const code = h("input", { type: "text", id: "j-code", autocomplete: "off", autocapitalize: "characters", spellcheck: "false", placeholder: "8-letter code, like K7M2 9QXR", maxlength: "9", "aria-label": "Invite code",
+        oninput: (e) => { e.target.value = formatCode(e.target.value); } });
+      const err = h("p", { class: "form-error", role: "alert", hidden: true });
+      const form = h("form", { novalidate: true, onsubmit: async (e) => {
+        e.preventDefault();
+        if (!code.value.trim()) { err.textContent = "Type the code, or choose to start your own."; err.hidden = false; code.focus(); return; }
+        const joined = await joinHousehold(code.value, { onFail: (x) => { err.textContent = householdError(x); err.hidden = false; } });
+        if (joined) closeDialog(els.settings);
+      } },
+        h("h2", { id: "settings-dialog-title", text: "Were you given a code?" }),
+        h("p", { class: "hint", text: "If your partner or family invited you, type the code to see the same tasks. Otherwise just start your own." }),
+        h("div", { class: "field" }, h("label", { for: "j-code", class: "sr-only", text: "Invite code" }), code), err,
+        h("div", { class: "dialog-actions" },
+          h("button", { type: "button", class: "btn", id: "j-skip", text: "No, start my own", onclick: () => closeDialog(els.settings) }),
+          h("button", { type: "submit", class: "btn primary solid", id: "j-go", text: "Join" })));
+      openDialog(els.settings, form, { trigger: null, focus: "#j-code" });
+    } catch { /* never get in the way of the app */ }
+  }
+
   function householdPanel() {
     const api = hhApi();
     const ls = doc.defaultView.localStorage;
     const wrap = h("div", { class: "household" }, h("h4", { text: "Household" }), h("p", { class: "hint", text: "Loading…" }));
-    const fail = (e) => toast(errMsg(e, "That didn't work. Try again."), { error: true });
+    const fail = (e) => toast(householdError(e), { error: true });
     const doneAndReload = (msg) => { toast(msg); setTimeout(reloadApp, 600); };
     async function paint() {
       let info;
@@ -1170,7 +1217,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         if (info.invite) {
           const left = Math.max(1, Math.ceil((new Date(info.invite.expires_at) - Date.now()) / 86400000));
           kids.push(
-            h("p", { class: "hint", text: `Give this code to the person (it works once and expires in ${left} day${left === 1 ? "" : "s"}). They sign in, then go to You, Settings, Account, Household, Join with a code.` }),
+            h("p", { class: "hint", text: `Give this code to the person (it works once and expires in ${left} day${left === 1 ? "" : "s"}). They sign in (Google or email) and the app asks for this code. It is also under You, Account, Household.` }),
             h("p", { class: "invite-code", id: "s-invite-code", text: info.invite.code }),
             h("div", { class: "row-panel-actions wrap-actions" },
               h("button", { type: "button", class: "btn", id: "s-invite-copy", text: "Copy code", onclick: async () => { try { await doc.defaultView.navigator.clipboard.writeText(info.invite.code); toast("Copied."); } catch { toast("Select the code and copy it.", { error: true }); } } }),
@@ -1180,12 +1227,13 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         }
       }
       if (alone) {
-        const code = h("input", { type: "text", id: "s-join-code", autocomplete: "off", autocapitalize: "characters", placeholder: "Code from the owner", maxlength: "12" });
-        kids.push(h("div", { class: "field" }, h("label", { for: "s-join-code", text: "Join someone else's household" }), code),
+        const code = h("input", { type: "text", id: "s-join-code", autocomplete: "off", autocapitalize: "characters", spellcheck: "false", placeholder: "8-letter code, like K7M2 9QXR", maxlength: "9",
+          oninput: (e) => { e.target.value = formatCode(e.target.value); } });
+        kids.push(h("div", { class: "field" }, h("label", { for: "s-join-code", text: "Join someone else's household" }), code,
+          h("p", { class: "hint", text: "Capital letters or small, with or without the space. Each code works once and lasts 7 days." })),
           h("button", { type: "button", class: "btn", id: "s-join", text: "Join with a code", onclick: async () => {
             if (!code.value.trim()) { toast("Type the code first.", { error: true }); code.focus(); return; }
-            if (!(await confirmDialog({ title: "Join this household?", message: "The tasks and history in YOUR account will be replaced by theirs. If you want to keep yours, cancel and use Download all my data first.", confirmLabel: "Join", danger: true }))) return;
-            try { await api.accept(code.value); clearLocalCache(ls, "motH.v1"); doneAndReload("Joined. Loading the shared tasks…"); } catch (e) { fail(e); }
+            await joinHousehold(code.value, { onFail: fail });
           } }));
       } else if (!owner) {
         kids.push(h("button", { type: "button", class: "btn", id: "s-leave", text: "Leave this household", onclick: async () => {
@@ -1256,7 +1304,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         clearLocalCache(doc.defaultView.localStorage, "motH.v1", { everything: true });
         status.textContent = "Your account was deleted.";
         setTimeout(reloadApp, 800);
-      } catch (e) { del.disabled = false; status.textContent = errMsg(e, "Couldn't delete the account. Nothing more was changed; try again."); }
+      } catch (e) {
+        del.disabled = false;
+        const why = householdError(e, "Couldn't delete the account.");
+        status.textContent = e && e.photosRemoved ? `${why} Your photos were already removed, but your account and tasks are still here. Try again.` : `${why} Nothing was deleted; try again.`;
+      }
     } });
     return h("div", { class: "your-data" }, h("h4", { text: "Your data" }),
       h("p", { class: "hint", text: "Get a copy of everything, including photos, or delete your account and its data for good." }),
@@ -1358,6 +1410,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
 
   render();
   if (!tourSeen() && state.profile && state.profile.setupDone && !loadError) openTour(null);
+  else if (!loadError) setTimeout(() => { maybeAskForCode(); }, 300); // first sign-in: "were you given a code?" before they build their own list
   if (loadError) toast("Couldn't load your saved data, so a fresh start was opened. " + errMsg(loadError), { error: true, ms: 12000 });
   else if (store.warning) toast(String(store.warning), { error: true, ms: 10000 });
   else if (!persistent && store.mode === "local") toast("Storage is unavailable; changes will not be kept after you close this page.", { error: true, ms: 10000 });

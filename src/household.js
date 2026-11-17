@@ -56,7 +56,12 @@ export function createHousehold({ url, anonKey, auth, fetchImpl }) {
     info: () => rpc("household_info"),
     invite: () => rpc("create_invite"),
     cancelInvite: () => rpc("cancel_invite"),
-    accept: (code) => rpc("accept_invite", { invite_code: String(code || "") }),
+    /** Join with a code. The server answers with a result (so a wrong try is still counted); a failure becomes a clear Error. */
+    async accept(code) {
+      const res = await rpc("accept_invite_v2", { invite_code: String(code || "") });
+      if (res && res.error) throw Object.assign(new Error(res.message || "That code didn't work."), { code: res.error });
+      return res && res.household_id;
+    },
     leave: () => rpc("leave_household"),
     remove: (userId) => rpc("remove_member", { target: userId }),
     makeOwner: (userId) => rpc("make_owner", { target: userId }),
@@ -76,8 +81,40 @@ export function createHousehold({ url, anonKey, auth, fetchImpl }) {
     /** Permanently delete the account. Photo files go first when nobody else shares the household. */
     async deleteAccount() {
       const info = await rpc("household_info");
-      if (info && Array.isArray(info.members) && info.members.length === 1) await this.deletePhotoFiles(info.household_id);
-      await rpc("delete_my_account");
+      let photosRemoved = false;
+      if (info && Array.isArray(info.members) && info.members.length === 1) { await this.deletePhotoFiles(info.household_id); photosRemoved = true; }
+      try { await rpc("delete_my_account"); }
+      catch (e) { throw Object.assign(e, { photosRemoved }); } // the photos are already gone: the screen must say so
     },
   };
+}
+
+/** What joining someone else's household would cost this person: nothing, or their own tasks and things. */
+export function joinImpact(state) {
+  const st = state || {};
+  const n = (k) => (Array.isArray(st[k]) ? st[k].length : 0);
+  const done = n("completions");
+  const own = { tasks: n("tasks"), vehicles: n("vehicles"), items: n("items"), supplies: n("supplies"), vendors: n("vendors") };
+  // Only the starter list, nothing finished and nothing added by hand: there is nothing of theirs to lose.
+  const untouched = done === 0 && !own.vehicles && !own.items && !own.supplies && !own.vendors;
+  const parts = [];
+  const add = (c, word, many) => { if (c) parts.push(`${c} ${c === 1 ? word : many || word + "s"}`); };
+  add(own.tasks, "task"); add(own.vehicles, "vehicle"); add(own.items, "home item"); add(own.supplies, "emergency supply", "emergency supplies"); add(own.vendors, "contact");
+  if (done) parts.push(`${done} finished ${done === 1 ? "task" : "tasks"} in your history`);
+  return { untouched, summary: parts.join(", "), counts: { ...own, completions: done } };
+}
+
+/** Friendly wording for things that go wrong while joining or managing a household. */
+export function householdError(e, fallback = "That didn't work. Try again.") {
+  const msg = e && e.message ? String(e.message) : "";
+  if (!msg) return fallback;
+  if (/failed to fetch|networkerror|load failed|network request failed|offline/i.test(msg)) return "You're offline. Connect to the internet and try again.";
+  if (/not signed in|jwt|expired token/i.test(msg)) return "Please sign in again, then try once more.";
+  return msg;
+}
+
+/** "k7m2 9qxr" -> "K7M2 9QXR": what the code box shows as someone types. */
+export function formatCode(text) {
+  const c = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  return c.length > 4 ? `${c.slice(0, 4)} ${c.slice(4)}` : c;
 }

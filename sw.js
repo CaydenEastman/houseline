@@ -1,5 +1,5 @@
 /* Man of the House service worker: works offline, always prefers fresh files when online. */
-const VERSION = "v6";
+const VERSION = "v7";
 const CACHE = "moth-" + VERSION;
 const SHELL = [
   "./", "index.html", "styles.css", "styles-views.css", "manifest.webmanifest",
