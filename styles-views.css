@@ -433,3 +433,17 @@ dialog .dialog-actions { position: sticky; bottom: 0; background: var(--surface)
 .v-inline-form .v-actions, .v-form > .v-actions { position: sticky; bottom: calc(var(--nav-h, 4rem) + env(safe-area-inset-bottom)); background: var(--surface); padding: .6rem 0; z-index: 2; }
 
 .view-only-note { margin: 0 0 .8rem; padding: .6rem .8rem; border-radius: 10px; background: var(--soon-bg); color: var(--soon); font-weight: 600; }
+
+/* Desktop: keep the top navigation in view while scrolling. */
+@media (min-width: 40rem) { .main-nav { position: sticky; top: 0; z-index: 25; background: var(--bg); padding-top: .5rem; padding-bottom: .5rem; margin-bottom: .5rem; } }
+/* Calendar filter checkboxes: the whole row is a comfortable tap target. */
+input[id^="v-cal-show-"] { width: 1.5rem; height: 1.5rem; margin: .6rem .2rem; }
+label[for^="v-cal-show-"] { display: inline-flex; align-items: center; min-height: 2.75rem; padding-right: .6rem; }
+/* Landscape phones: dialogs use the whole height and sections stay compact. */
+@media (max-height: 30rem) { dialog { max-height: 100dvh; width: min(100% - 1rem, 40rem); } dialog h2 { margin-bottom: .4rem; } .set-sec { margin-bottom: .6rem; } }
+/* Insights: one button style, with space between a box and its copy button. */
+.v-actions .btn, .v-panel .btn { min-height: 2.75rem; }
+.v-actions { margin-top: .5rem; }
+/* Big numbers never push their card wider. */
+.v-odo, .v-odo-num, .v-card-top { min-width: 0; overflow-wrap: anywhere; }
+.v-card-top { flex-wrap: wrap; }

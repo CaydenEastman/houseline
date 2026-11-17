@@ -1,5 +1,6 @@
 // App shell: header, Today banner, navigation, Tasks view, task/complete/settings dialogs, toasts, sync.
 import { h as hBase, localToday, isoToLocalDate, fmtDate, safeUrl, plural, fmtNum, milesText } from "./dom.js";
+import { APP_VERSION } from "./version.js";
 import { CATEGORIES } from "./templates.js";
 import {
   statusOf, dueInfo, sortTasks, summary, markDone, skipTask, snoozeTask, unsnoozeTask,
@@ -136,11 +137,8 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         if (!els.status.matches(":popover-open")) els.status.showPopover();
       }
     } catch { /* older browsers: the message simply shows in the normal layer */ }
-    while (els.status.children.length > 3) {
-      const first = Array.from(els.status.children).find((c) => c !== undoToast);
-      if (!first) break;
-      first.remove();
-    }
+    // One message at a time (plus the Undo one), so they never pile up over the bottom bar.
+    for (const c of Array.from(els.status.children)) { if (c !== item && c !== undoToast) c.remove(); }
     // Undo stays available for 12 s; plain messages are shorter.
     timer = setTimeout(remove, ms || (undoBtn ? 12000 : error ? 8000 : 4500));
     item._remove = remove;
@@ -895,6 +893,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       h("fieldset", { class: "plain-fieldset" }, h("legend", { text: "Links (manuals, how-to videos)" }), linkBox, addLink),
       field("Notes", f.notes, null, "f-notes"),
       f.err,
+      editing ? h("div", { class: "row-panel-actions wrap-actions" },
+        h("button", { type: "button", class: "btn subtle", id: "f-skip", text: "Skip this time", onclick: () => { closeDialog(els.task); onSkip(task); } }),
+        h("button", { type: "button", class: "btn danger", id: "f-delete", text: "Delete task", onclick: async () => {
+          closeDialog(els.task);
+          if (!(await confirmDialog({ title: "Delete this task?", message: `“${task.title}” is removed. Its history is kept.`, confirmLabel: "Delete task", danger: true }))) return;
+          const next = guard(() => deleteTask(state, task.id));
+          if (next) commit(next, `Deleted: ${task.title}`);
+        } })) : null,
       h("div", { class: "dialog-actions" },
         h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => closeDialog(els.task) }),
         h("button", { type: "submit", class: "btn primary solid", text: editing ? "Save task" : "Add task" })));
@@ -1021,8 +1027,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       try { r = importTasksCSV(state, text, newId, today); } catch (e) { csvOut.replaceChildren(h("p", { class: "form-error", role: "alert", text: errMsg(e, "Couldn't read that.") })); return; }
       const skipText = r.skipped.slice(0, 6).map((x) => `row ${x.row}: ${x.reason}`).join("; ") + (r.skipped.length > 6 ? `; and ${r.skipped.length - 6} more` : "");
       if (!r.added) { csvOut.replaceChildren(h("p", { class: "form-error", role: "alert", text: `Nothing was imported. ${skipText}` })); return; }
-      closeDialog(els.settings);
-      commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length} (${skipText})` : ""}${r.warnings && r.warnings.length ? `. Note: ${r.warnings.join("; ")}` : ""}.`);
+      const go = async () => {
+        const ok = await confirmDialog({ title: `Import ${plural(r.added, "task")}?`, message: r.skipped.length ? `${skipText}. Those rows will be left out.` : "They are added to your list. You can undo right after.", confirmLabel: "Import" });
+        if (!ok) return;
+        closeDialog(els.settings);
+        commitCsv();
+      };
+      const commitCsv = () => commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length} (${skipText})` : ""}${r.warnings && r.warnings.length ? `. Note: ${r.warnings.join("; ")}` : ""}.`);
+      go();
     }
     csvFile.addEventListener("change", async () => {
       const f = csvFile.files && csvFile.files[0]; csvFile.value = "";
@@ -1055,7 +1067,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       h("div", { class: "dlg-head" }, h("h2", { id: "settings-dialog-title", tabindex: "-1", text: "Settings" }), h("button", { type: "button", class: "dlg-x", "aria-label": "Close settings", text: "\u00d7", onclick: () => closeDialog(els.settings) })),
       h("section", { class: "set-sec" },
         h("h3", { text: "Help" }),
-        h("button", { type: "button", class: "btn", id: "s-tour", text: "Show the quick tour", onclick: () => { closeDialog(els.settings); openTour(null); } })),
+        h("div", { class: "row-panel-actions wrap-actions" },
+          h("button", { type: "button", class: "btn", id: "s-tour", text: "Show the quick tour", onclick: () => { closeDialog(els.settings); openTour(null); } }),
+          h("button", { type: "button", class: "btn", id: "s-report", text: "Copy info for a problem report", onclick: async () => {
+            const w = doc.defaultView; const nav = (w && w.navigator) || {};
+            const info = `Man of the House ${APP_VERSION}\n${nav.userAgent || "unknown browser"}\nmode: ${store.mode}${viewOnly ? ", view only" : ""}\nscreen: ${(w && w.innerWidth) || "?"}x${(w && w.innerHeight) || "?"}`;
+            try { await nav.clipboard.writeText(info); toast("Copied. Paste it into your message and say what went wrong."); } catch { toast("Couldn't copy. Take a screenshot instead.", { error: true }); }
+          } })),
+        h("p", { class: "hint" }, "Something broken or confusing? Copy the info, then ", h("a", { href: "https://github.com/CaydenEastman/man-of-the-house/issues/new", target: "_blank", rel: "noopener", text: "describe it here" }), ".")),
       h("section", { class: "set-sec" },
         h("h3", { text: "Look" }),
         h("div", { class: "field" }, h("label", { for: "s-theme", text: "Theme" }),
@@ -1064,14 +1083,15 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         h("div", { class: "field" }, h("label", { for: "s-text", text: "Text size" }),
           h("select", { id: "s-text", onchange: (e) => setLook({ text: e.target.value }) },
             [["normal", "Normal"], ["large", "Large"], ["xl", "Extra large"]].map(([v, t]) => h("option", { value: v, text: t, selected: look.text === v })))),
-        h("p", { class: "hint", text: "Theme and text size are saved on this device only." }),
+        h("p", { class: "hint", text: "Theme and text size are saved on this device only." })),
+
+      h("section", { class: "set-sec" },
+        h("h3", { text: "Your home" }),
         h("div", { class: "field" }, h("label", { for: "s-climate", text: "Climate (for seasonal reminders)" }),
           h("select", { id: "s-climate", onchange: (e) => { const next = guard(() => updateProfile(state, { climate: e.target.value })); if (next) commit(next, "Climate saved.", { undoable: false }); } },
-            [["cold", "Cold winters"], ["mild", "Mild year-round"], ["hot", "Hot summers"]].map(([v, t]) => h("option", { value: v, text: t, selected: ((state.profile && state.profile.climate) || "cold") === v }))))),
-      h("section", { class: "set-sec" },
-        h("h3", { text: "Home age and extra tasks" }),
+            [["cold", "Cold winters"], ["mild", "Mild year-round"], ["hot", "Hot summers"]].map(([v, t]) => h("option", { value: v, text: t, selected: ((state.profile && state.profile.climate) || "cold") === v })))),
         h("div", { class: "field" }, h("label", { for: "s-age", text: "How old is your home?" }),
-          h("select", { id: "s-age", onchange: (e) => { const next = guard(() => updateProfile(state, { homeAge: e.target.value })); if (next) commit(next, null, { undoable: false }); } },
+          h("select", { id: "s-age", onchange: (e) => { const next = guard(() => updateProfile(state, { homeAge: e.target.value })); if (next) commit(next, "Home age saved.", { undoable: false }); } },
             h("option", { value: "", text: "Not set", disabled: true, selected: !(state.profile && state.profile.homeAge) }),
             HOME_AGE_TYPES.map((v) => h("option", { value: v, text: HOME_AGE_LABEL[v], selected: (state.profile && state.profile.homeAge) === v })))),
         h("button", { type: "button", class: "btn", id: "s-age-add", text: "Add suggested tasks for my home's age", onclick: () => {
@@ -1079,10 +1099,13 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           if (!age) { toast("Pick your home's age first.", { error: true }); return; }
           const list = ageTasks(age, state.tasks.map((t) => t.title), today);
           if (!list.length) { toast("You already have all the suggested tasks."); return; }
-          let next = state;
-          for (const t of list) { const r = guard(() => addTask(next, t, newId)); if (r) next = r; }
           closeDialog(els.settings);
-          commit(next, `Added ${plural(list.length, "suggested task")}.`);
+          confirmDialog({ title: `Add ${plural(list.length, "suggested task")}?`, message: `${list.slice(0, 8).map((t) => t.title).join(", ")}${list.length > 8 ? `, and ${list.length - 8} more` : ""}.`, confirmLabel: "Add them" }).then((ok) => {
+            if (!ok) return;
+            let next = state;
+            for (const t of list) { const r = guard(() => addTask(next, t, newId)); if (r) next = r; }
+            commit(next, `Added ${plural(list.length, "suggested task")}.`);
+          });
         } })),
       h("section", { class: "set-sec" },
         h("h3", { text: "Import tasks from a spreadsheet" }),
