@@ -461,3 +461,201 @@ alter table public.push_subscriptions add constraint push_quiet_days_valid check
 
 -- search_path note: every security-definer function pins search_path=public, and neither anon nor authenticated can
 -- CREATE in schema public, so nobody can plant look-alike objects. Rewriting them to an empty path is not needed.
+-- ===== View-only members, join notices =====
+alter table public.household_members add column if not exists can_edit boolean not null default true;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'owner_can_edit') then
+    alter table public.household_members add constraint owner_can_edit check (role <> 'owner' or can_edit);
+  end if;
+end $$;
+alter table public.household_invites add column if not exists view_only boolean not null default false;
+
+create or replace function public.is_editor(hh uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.can_edit);
+$$;
+revoke execute on function public.is_editor(uuid) from public, anon;
+grant execute on function public.is_editor(uuid) to authenticated;
+
+drop policy if exists docs_insert on public.docs;
+create policy docs_insert on public.docs for insert to authenticated with check (public.is_editor(household_id));
+drop policy if exists docs_update on public.docs;
+create policy docs_update on public.docs for update to authenticated using (public.is_editor(household_id)) with check (public.is_editor(household_id));
+drop policy if exists docs_delete on public.docs;
+create policy docs_delete on public.docs for delete to authenticated using (public.is_editor(household_id));
+
+create or replace function public.photo_folder_edit_ok(name text)
+returns boolean language sql stable set search_path = public as $$
+  select case when array_length(storage.foldername(name), 1) = 1 and (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+              then public.is_editor(((storage.foldername(name))[1])::uuid) else false end;
+$$;
+revoke execute on function public.photo_folder_edit_ok(text) from public, anon;
+grant execute on function public.photo_folder_edit_ok(text) to authenticated;
+drop policy if exists photos_insert on storage.objects;
+create policy photos_insert on storage.objects for insert to authenticated with check (bucket_id = 'photos' and public.photo_folder_edit_ok(name));
+drop policy if exists photos_update on storage.objects;
+create policy photos_update on storage.objects for update to authenticated using (bucket_id = 'photos' and public.photo_folder_edit_ok(name)) with check (bucket_id = 'photos' and public.photo_folder_edit_ok(name));
+drop policy if exists photos_delete on storage.objects;
+create policy photos_delete on storage.objects for delete to authenticated using (bucket_id = 'photos' and public.photo_folder_edit_ok(name));
+
+-- A view-only person cannot take the write lock either.
+create or replace function public.acquire_lock(holder text, ttl_ms integer default 8000)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare hh uuid; got boolean;
+begin
+  hh := public.ensure_household();
+  if not public.is_editor(hh) then return false; end if;
+  with up as (
+    insert into public.locks as l (household_id, holder, expires_at)
+    values (hh, holder, now() + (least(greatest(coalesce(ttl_ms, 8000), 1000), 30000) || ' milliseconds')::interval)
+    on conflict (household_id) do update set holder = excluded.holder, expires_at = excluded.expires_at,
+      acquired_at = case when l.holder = excluded.holder and l.expires_at >= now() then l.acquired_at else now() end
+      where (l.holder = excluded.holder and l.acquired_at > now() - interval '60 seconds') or l.expires_at < now()
+    returning 1)
+  select exists (select 1 from up) into got;
+  return got;
+end $$;
+
+-- Members now report can_edit; the owner's invite reports whether it is view-only.
+create or replace function public.household_info()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare hh uuid; me text; inv jsonb; ce boolean;
+begin
+  hh := public.ensure_household();
+  select m.role, m.can_edit into me, ce from public.household_members m where m.household_id = hh and m.user_id = auth.uid();
+  if me = 'owner' then
+    select jsonb_build_object('code', i.code, 'expires_at', i.expires_at, 'view_only', i.view_only) into inv
+      from public.household_invites i where i.household_id = hh and i.used_at is null and i.expires_at > now()
+      order by i.expires_at desc limit 1;
+  end if;
+  return jsonb_build_object(
+    'household_id', hh, 'role', me, 'can_edit', ce, 'invite', inv,
+    'members', (select coalesce(jsonb_agg(jsonb_build_object('user_id', m.user_id, 'email', u.email, 'role', m.role, 'can_edit', m.can_edit, 'me', m.user_id = auth.uid()) order by m.created_at), '[]'::jsonb)
+                from public.household_members m join auth.users u on u.id = m.user_id where m.household_id = hh));
+end $$;
+
+drop function if exists public.create_invite();
+create or replace function public.create_invite(view_only boolean default false)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare hh uuid; c text := ''; b bytea; i int; alpha constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; exp timestamptz := now() + interval '7 days';
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can invite people';
+  end if;
+  if (select count(*) from public.household_members m where m.household_id = hh) >= 6 then
+    raise exception 'A household can have at most 6 people';
+  end if;
+  delete from public.household_invites where household_id = hh and used_at is null;
+  loop
+    b := uuid_send(gen_random_uuid()); c := '';
+    for i in 0..7 loop c := c || substr(alpha, (get_byte(b, i + 6) % 31) + 1, 1); end loop;
+    begin
+      insert into public.household_invites (code, household_id, created_by, expires_at, view_only) values (c, hh, auth.uid(), exp, coalesce(create_invite.view_only, false));
+      exit;
+    exception when unique_violation then null;
+    end;
+  end loop;
+  return jsonb_build_object('code', c, 'expires_at', exp, 'view_only', coalesce(create_invite.view_only, false));
+end $$;
+revoke all on function public.create_invite(boolean) from public, anon;
+grant execute on function public.create_invite(boolean) to authenticated;
+
+-- Owner switches someone between "can edit" and "view only".
+create or replace function public.set_member_edit(target uuid, allow boolean)
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can do that';
+  end if;
+  if target = auth.uid() then raise exception 'The owner can always edit.'; end if;
+  update public.household_members set can_edit = coalesce(allow, true) where household_id = hh and user_id = target;
+  if not found then raise exception 'That person is not in your household.'; end if;
+end $$;
+revoke all on function public.set_member_edit(uuid, boolean) from public, anon;
+grant execute on function public.set_member_edit(uuid, boolean) to authenticated;
+
+-- Joining honours a view-only invite and leaves a notice for the people already there.
+create table if not exists public.join_notices (
+  id bigint generated always as identity primary key,
+  household_id uuid not null references public.households(id) on delete cascade,
+  who text not null,
+  created_at timestamptz not null default now(),
+  sent_at timestamptz
+);
+alter table public.join_notices enable row level security;
+revoke all on public.join_notices from anon, authenticated;
+
+create or replace function public.accept_invite_v2(invite_code text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare mine uuid; inv public.household_invites; norm text; who text;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from public.invite_attempts where at < now() - interval '1 day';
+  if (select count(*) from public.invite_attempts a where a.user_id = auth.uid() and a.at > now() - interval '1 hour') >= 10 then
+    return jsonb_build_object('error', 'throttled', 'message', 'Too many tries. Wait an hour and try again.');
+  end if;
+  insert into public.invite_attempts (user_id) values (auth.uid());
+  norm := upper(regexp_replace(coalesce(invite_code, ''), '[^A-Za-z0-9]', '', 'g'));
+  select * into inv from public.household_invites i where i.code = norm for update;
+  if not found then return jsonb_build_object('error', 'invalid', 'message', 'That code does not match. Check it for typos, or ask for a new one.'); end if;
+  if inv.used_at is not null then return jsonb_build_object('error', 'used', 'message', 'That code was already used. Ask for a new one.'); end if;
+  if inv.expires_at <= now() then return jsonb_build_object('error', 'expired', 'message', 'That code has expired. Ask for a new one.'); end if;
+  mine := public.ensure_household();
+  if mine = inv.household_id then return jsonb_build_object('error', 'already_member', 'message', 'You are already in this household.'); end if;
+  if (select count(*) from public.household_members m where m.household_id = mine) > 1 then
+    return jsonb_build_object('error', 'in_shared', 'message', 'You are already in a shared household. Leave it first (You, Account, Household).');
+  end if;
+  if (select count(*) from public.household_members m where m.household_id = inv.household_id) >= 6 then
+    return jsonb_build_object('error', 'full', 'message', 'That household is full.');
+  end if;
+  select coalesce(u.email, 'Someone') into who from auth.users u where u.id = auth.uid();
+  delete from public.households where id = mine;
+  insert into public.household_members (household_id, user_id, role, can_edit) values (inv.household_id, auth.uid(), 'member', not inv.view_only);
+  update public.household_invites set used_by = auth.uid(), used_at = now() where code = inv.code;
+  insert into public.join_notices (household_id, who) values (inv.household_id, who);
+  return jsonb_build_object('household_id', inv.household_id, 'can_edit', not inv.view_only);
+end $$;
+revoke all on function public.accept_invite_v2(text) from public, anon;
+grant execute on function public.accept_invite_v2(text) to authenticated;
+
+-- Ownership changes keep the "owner can always edit" rule.
+create or replace function public.make_owner(target uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = auth.uid() and m.role = 'owner') then
+    raise exception 'Only the owner can do that';
+  end if;
+  if not exists (select 1 from public.household_members m where m.household_id = hh and m.user_id = target) then raise exception 'That person is not in your household.'; end if;
+  update public.household_members set role = 'owner', can_edit = true where household_id = hh and user_id = target;
+  update public.household_members set role = 'member' where household_id = hh and user_id = auth.uid() and target <> auth.uid();
+end $$;
+revoke all on function public.make_owner(uuid) from public, anon;
+grant execute on function public.make_owner(uuid) to authenticated;
+
+-- Account deletion: an heir who was view-only becomes a full owner.
+create or replace function public.delete_my_account()
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid; me text; heir uuid;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  select m.household_id, m.role into hh, me from public.household_members m where m.user_id = auth.uid() limit 1;
+  if hh is not null then
+    if (select count(*) from public.household_members m where m.household_id = hh) = 1 then
+      delete from public.households where id = hh;
+    else
+      if me = 'owner' then
+        select m.user_id into heir from public.household_members m where m.household_id = hh and m.user_id <> auth.uid() order by m.created_at limit 1;
+        update public.household_members set role = 'owner', can_edit = true where household_id = hh and user_id = heir;
+      end if;
+      delete from public.household_members where household_id = hh and user_id = auth.uid();
+    end if;
+  end if;
+  delete from auth.users where id = auth.uid();
+end $$;
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

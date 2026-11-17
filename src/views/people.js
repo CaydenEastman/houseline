@@ -46,7 +46,7 @@ function build(ctx, rerender) {
     hint ? h("p", { class: "hint", text: hint }) : null);
 
   const pet = S.form && S.form.kind === "pet";
-  const form = S.form ? h("form", { class: "v-form", "aria-label": S.form.id ? "Edit person" : "Add person", onsubmit: (e) => { e.preventDefault(); save(); } },
+  const form = S.form ? h("form", { class: "v-form", novalidate: true, "aria-label": S.form.id ? "Edit person" : "Add person", onsubmit: (e) => { e.preventDefault(); save(); } },
     h("h3", { class: "v-h3", text: S.form.id ? "Edit" : "Add someone" }),
     text("Name", "name", { required: true }),
     h("div", { class: "field" }, h("label", { for: "v-pf-kind", text: "Who is this?" }),
@@ -79,7 +79,7 @@ function build(ctx, rerender) {
       ? h("div", { class: "v-confirm", role: "group", "aria-label": `Delete ${p.name}?` }, h("p", { text: `Remove ${p.name}'s details?` }),
         h("div", { class: "v-actions" },
           h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => { S.confirmDel = null; rerender(); } }),
-          h("button", { type: "button", class: "btn danger", text: "Remove", onclick: () => { S.confirmDel = null; try { ctx.commit(deletePerson(state, p.id), `Removed ${p.name}`); } catch { rerender(); } } })))
+          h("button", { type: "button", class: "btn danger", text: "Remove", onclick: () => { S.confirmDel = null; S.pending = "v-ppl-add"; try { ctx.commit(deletePerson(state, p.id), `Removed ${p.name}`); } catch { rerender(); } } })))
       : h("div", { class: "v-actions" },
         h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit ${p.name}`, onclick: () => { S.form = blank(p); S.pending = "v-pf-name"; rerender(); } }),
         h("button", { type: "button", class: "btn v-small", text: "Remove", "aria-label": `Remove ${p.name}`, onclick: () => { S.confirmDel = p.id; rerender(); } })));

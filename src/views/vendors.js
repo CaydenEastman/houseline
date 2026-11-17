@@ -37,7 +37,7 @@ function build(ctx, rerender) {
     h("label", { for: `v-vf-${key}`, text: lbl }),
     h("input", { id: `v-vf-${key}`, "data-fk": `v-vf-${key}`, value: S.form[key], maxlength: "120", ...attrs, oninput: (e) => { S.form[key] = e.target.value; } }));
 
-  const form = S.form ? h("form", { class: "v-form", "aria-label": S.form.id ? "Edit contact" : "Add contact", onsubmit: (e) => { e.preventDefault(); save(); } },
+  const form = S.form ? h("form", { class: "v-form", novalidate: true, "aria-label": S.form.id ? "Edit contact" : "Add contact", onsubmit: (e) => { e.preventDefault(); save(); } },
     h("h3", { class: "v-h3", text: S.form.id ? "Edit contact" : "Add contact" }),
     field("Name", "name", { required: true, autocomplete: "off" }),
     h("div", { class: "field" }, h("label", { for: "v-vf-trade", text: "Trade" }),
@@ -70,7 +70,7 @@ function build(ctx, rerender) {
       ? h("div", { class: "v-confirm", role: "group", "aria-label": `Delete ${v.name}?` }, h("p", { text: `Delete ${v.name}?` }),
         h("div", { class: "v-actions" },
           h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => { S.confirmDel = null; rerender(); } }),
-          h("button", { type: "button", class: "btn danger", text: "Delete", onclick: () => { S.confirmDel = null; try { ctx.commit(deleteVendor(state, v.id), `Deleted ${v.name}`); } catch { rerender(); } } })))
+          h("button", { type: "button", class: "btn danger", text: "Delete", onclick: () => { S.confirmDel = null; S.pending = "v-vend-add"; try { ctx.commit(deleteVendor(state, v.id), `Deleted ${v.name}`); } catch { rerender(); } } })))
       : h("div", { class: "v-actions" },
         h("button", { type: "button", class: "btn v-small", text: "Edit", "aria-label": `Edit ${v.name}`, onclick: () => { S.form = blank(v); S.pending = "v-vf-name"; rerender(); } }),
         h("button", { type: "button", class: "btn v-small", text: "Delete", "aria-label": `Delete ${v.name}`, onclick: () => { S.confirmDel = v.id; rerender(); } })));

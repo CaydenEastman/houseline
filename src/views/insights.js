@@ -117,7 +117,6 @@ function build(ctx, rerender) {
       btn("Copy binder as text", "v-ex-btext", () => copy(binderText(state, today), "Copied the binder text.", "v-ex-btext"))),
     h("div", { class: "v-actions" },
       btn("Copy this week's digest", "v-ex-digest", () => copy(digestText(state, today, nameOf), "Copied the digest. Paste it into an email or text.", "v-ex-digest"))),
-    h("p", { class: "v-hint", text: "The page can't send reminders on its own. To get the digest by email each week, ask Claude to set up a scheduled digest." }),
     S.msg ? h("p", { class: "v-hint", role: "status", text: S.msg }) : null,
     S.showText ? h("div", { class: "field" }, h("label", { for: "v-ex-area", text: "Text to copy" }),
       h("textarea", { id: "v-ex-area", rows: "8", readonly: true, "data-fk": "v-ex-area", text: S.showText })) : null);

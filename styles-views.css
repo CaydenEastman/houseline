@@ -420,3 +420,16 @@ input[type="checkbox"] { width: 1.4rem; height: 1.4rem; }
 a.privacy-link, .hint a { display: inline-block; padding: .5rem 0; }
 
 .linklike { font: inherit; background: none; border: 0; padding: .6rem .2rem; min-height: 2.75rem; color: var(--brand); text-decoration: underline; cursor: pointer; }
+
+.v-entry-actions { margin-top: .4rem; }
+/* Labels stay whole words; the column grows instead of breaking them. */
+.v-bar-label { overflow-wrap: normal; word-break: normal; hyphens: manual; white-space: nowrap; }
+.v-bar-row { grid-template-columns: minmax(4.5rem, max-content) 1fr minmax(4rem, max-content); }
+.v-table th[scope="row"] { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+.v-table thead th { white-space: nowrap; }
+
+/* Long forms: Save and Cancel stay reachable while you scroll. */
+dialog .dialog-actions { position: sticky; bottom: 0; background: var(--surface); padding: .7rem 0 .2rem; border-top: 1px solid var(--line); margin-top: .8rem; z-index: 2; }
+.v-inline-form .v-actions, .v-form > .v-actions { position: sticky; bottom: calc(var(--nav-h, 4rem) + env(safe-area-inset-bottom)); background: var(--surface); padding: .6rem 0; z-index: 2; }
+
+.view-only-note { margin: 0 0 .8rem; padding: .6rem .8rem; border-radius: 10px; background: var(--soon-bg); color: var(--soon); font-weight: 600; }

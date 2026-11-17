@@ -107,7 +107,8 @@ function spendPanel(ctx, state, year) {
   return h("section", { class: "v-panel", "aria-labelledby": "v-spend-h" },
     h("h3", { id: "v-spend-h", class: "v-h3", text: year == null ? "Spending, all years" : `Spending in ${year}` }),
     h("p", { class: "v-total" }, h("span", { class: "v-total-num", text: fmtMoney(s.total) || "$0.00" }), " total, from tasks you marked done with a cost"),
-    h("div", { class: "v-spend-grid" },
+    !(s.total > 0) ? h("p", { class: "v-hint", text: "Nothing to chart yet. Add a cost when you mark a task done and the charts appear here." }) : null,
+    !(s.total > 0) ? null : h("div", { class: "v-spend-grid" },
       h("div", {},
         h("h4", { class: "v-h4", text: "By category" }),
         h("ul", { class: "v-bars", "aria-label": `Spending by category, ${yl}` },
@@ -169,7 +170,9 @@ function entry(ctx, c, rerender) {
     h("p", { class: "v-entry-title", text: c.title }),
     meta.length ? h("p", { class: "v-meta", text: meta.join(" · ") }) : null,
     c.notes ? h("p", { class: "v-notes", text: c.notes }) : null,
-    photos.length ? h("div", { class: "v-thumbs" }, photos) : null);
+    photos.length ? h("div", { class: "v-thumbs" }, photos) : null,
+    typeof ctx.editCompletion === "function" ? h("div", { class: "v-entry-actions" },
+      h("button", { type: "button", class: "btn subtle v-small", "data-fk": `edit-${c.id}`, "aria-label": `Edit or delete: ${c.title}, ${fmtDate(c.date)}`, text: "Edit", onclick: (e) => ctx.editCompletion(c, e.currentTarget) })) : null);
 }
 
 function viewer(ctx, rerender) {

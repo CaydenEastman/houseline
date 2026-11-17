@@ -54,6 +54,33 @@ Deno.serve(async (req) => {
     if (url.searchParams.get("action") === "init") return json({ publicKey: cfg.vapid_public });
 
     webpush.setVapidDetails(SITE, cfg.vapid_public, cfg.vapid_private);
+    // Every few minutes: tell the people already in a household that someone just joined.
+    if (url.searchParams.get("joins") === "1") {
+      const { data: notes } = await sb.from("join_notices").select("*").is("sent_at", null).order("id").limit(50);
+      const res = { notices: (notes ?? []).length, sent: 0, removed: 0, failed: 0 };
+      for (const n of notes ?? []) {
+        const { data: mem } = await sb.from("household_members").select("user_id").eq("household_id", n.household_id);
+        const ids: string[] = [];
+        for (const m of mem ?? []) {
+          const { data: u } = await sb.auth.admin.getUserById(m.user_id);
+          if (u && u.user && (u.user.email ?? "Someone") !== n.who) ids.push(m.user_id);
+        }
+        const { data: subs } = ids.length ? await sb.from("push_subscriptions").select("*").in("user_id", ids) : { data: [] as any[] };
+        for (const s of subs ?? []) {
+          try {
+            await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+              JSON.stringify({ title: "Man of the House", body: `${n.who} joined your household.`, url: SITE }), { TTL: 24 * 3600, urgency: "normal" });
+            res.sent++;
+          } catch (e) {
+            const code = (e as { statusCode?: number }).statusCode;
+            if (code === 404 || code === 410) { await sb.from("push_subscriptions").delete().eq("endpoint", s.endpoint); res.removed++; } else res.failed++;
+          }
+        }
+        await sb.from("join_notices").update({ sent_at: new Date().toISOString() }).eq("id", n.id);
+      }
+      await sb.from("join_notices").delete().lt("created_at", new Date(Date.now() - 7 * 86400000).toISOString());
+      return json(res);
+    }
     const dry = url.searchParams.get("dry") === "1";
     const force = url.searchParams.get("force") === "1"; // testing only: ignore the morning window
 

@@ -45,3 +45,27 @@ test("choosing 'without an account' is remembered", async () => {
   const doc = await open({ a: auth(), st: freshState(), ls });
   assert.doesNotMatch(doc.getElementById("wizard").textContent, /Welcome to Man of the House/);
 });
+
+test("view-only member: banner shows and no change is saved", async () => {
+  const ls = fakeLS({ "motH.tour": "1", "motH.viewOnly": "1" });
+  const saved = [];
+  const st = { ...store(), save: async (s) => { saved.push(s); return true; } };
+  const doc = makeDocument();
+  doc.defaultView = { localStorage: ls, motAuth: auth({ user: { id: "u1", email: "v@b.co" } }), motHousehold: { info: async () => ({ can_edit: false, role: "member", members: [], invite: null, household_id: "h" }) }, location: { origin: "https://x", pathname: "/", reload() {}, assign() {} } };
+  const state = mkState({ tasks: [mkTask({ id: "a", title: "A", lastDone: "2026-01-01", intervalDays: 30 })] });
+  await mount(doc, { store: st, state });
+  await sleep(20);
+  assert.match(doc.getElementById("today-strip").textContent, /View only/);
+  const done = doc.getElementById("main").querySelectorAll("button").find((b) => /^Done$/i.test((b.textContent || "").trim()));
+  if (done) { done.click(); await sleep(10); }
+  assert.equal(saved.length, 0);
+});
+test("an editor who was view-only before is switched back when the server says so", async () => {
+  const ls = fakeLS({ "motH.tour": "1", "motH.viewOnly": "1" });
+  const doc = makeDocument();
+  doc.defaultView = { localStorage: ls, motAuth: auth({ user: { id: "u1", email: "v@b.co" } }), motHousehold: { info: async () => ({ can_edit: true, role: "member", members: [], invite: null, household_id: "h" }) }, location: { origin: "https://x", pathname: "/", reload() {}, assign() {} } };
+  await mount(doc, { store: store(), state: mkState({ tasks: [mkTask({ id: "a", title: "A", lastDone: "2026-01-01", intervalDays: 30 })] }) });
+  await sleep(20);
+  assert.doesNotMatch(doc.getElementById("today-strip").textContent, /View only/);
+  assert.equal(ls.getItem("motH.viewOnly"), "0");
+});

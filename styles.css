@@ -236,7 +236,7 @@ body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 }
 
 /* Toasts */
-.status { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + .75rem + env(safe-area-inset-bottom)); width: min(100% - 1.5rem, 28rem);
+.status { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 1.5rem + env(safe-area-inset-bottom)); width: min(100% - 1.5rem, 28rem);
   display: grid; gap: .4rem; z-index: 40; pointer-events: none; }
 @media (min-width: 40rem) { .status { bottom: 1rem; } }
 .toast { display: flex; align-items: center; justify-content: space-between; gap: .9rem; background: var(--text); color: var(--bg); padding: .65rem 1rem;

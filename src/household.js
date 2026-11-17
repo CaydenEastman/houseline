@@ -54,7 +54,8 @@ export function createHousehold({ url, anonKey, auth, fetchImpl }) {
 
   return {
     info: () => rpc("household_info"),
-    invite: () => rpc("create_invite"),
+    invite: (viewOnly) => rpc("create_invite", { view_only: !!viewOnly }),
+    setEdit: (userId, allow) => rpc("set_member_edit", { target: userId, allow: !!allow }),
     cancelInvite: () => rpc("cancel_invite"),
     /** Join with a code. The server answers with a result (so a wrong try is still counted); a failure becomes a clear Error. */
     async accept(code) {

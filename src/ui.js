@@ -4,6 +4,7 @@ import { CATEGORIES } from "./templates.js";
 import {
   statusOf, dueInfo, sortTasks, summary, markDone, skipTask, snoozeTask, unsnoozeTask,
   addTask, updateTask, deleteTask, searchTasks, warrantyAlerts, addDays, updateProfile, HOME_AGE_TYPES,
+  updateCompletion, deleteCompletion,
 } from "./logic.js";
 import { validateState, exportJSON, importJSON } from "./storage.js";
 import { readiness } from "./readiness.js";
@@ -165,7 +166,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     } catch { /* logging is best-effort */ }
   }
 
+  // A person invited as "view only" can look at everything but not change it (the database refuses their saves too).
+  let viewOnly = false;
+  try { viewOnly = doc.defaultView.localStorage.getItem("motH.viewOnly") === "1"; } catch { /* ignore */ }
   function commit(next, message, { undoable = true } = {}) {
+    if (viewOnly) { toast("You have view-only access, so changes aren't saved. Ask the owner to let you edit.", { error: true }); return false; }
     try { validateState(next); } catch (e) { toast("Couldn't save that change: " + errMsg(e), { error: true }); return false; }
     const prev = state;
     state = next;
@@ -241,6 +246,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       return commit(next, `Marked ${plural(n, "task")} done`);
     },
     personName: (id) => personName(id),
+    editCompletion: (c, trigger) => openEditCompletion(c, trigger),
     setView: (id, focus) => setView(id, !!focus),
     // Opens the same "Complete task" dialog as the Done button on the Tasks tab; unknown ids are ignored.
     completeTask: (taskId) => {
@@ -347,7 +353,19 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   const SYNC_LABEL = { saved: "Saved", saving: "Saving…", error: "Not saved", offline: "Offline", local: "Local only" };
   function renderStrip() {
     // No banner or header indicator any more: a sync problem shows up as a message at the bottom (see onStatus).
+    if (viewOnly) { els.strip.hidden = false; els.strip.replaceChildren(h("p", { class: "view-only-note", role: "note", text: "View only: you can look around, but changes aren't saved. Ask the owner to let you edit." })); return; }
     els.strip.hidden = true; els.strip.replaceChildren();
+  }
+  // Learn at startup whether this account may edit (the database enforces it either way).
+  async function refreshEditRights() {
+    try {
+      const api = hhApi(); const a = authOf();
+      if (!api || !a || !a.session || !a.session()) { if (viewOnly) { viewOnly = false; doc.defaultView.localStorage.removeItem("motH.viewOnly"); render(); } return; }
+      const info = await api.info();
+      const now = !!info && info.can_edit === false;
+      doc.defaultView.localStorage.setItem("motH.viewOnly", now ? "1" : "0");
+      if (now !== viewOnly) { viewOnly = now; render(); }
+    } catch { /* offline: keep what we knew */ }
   }
 
   // ---------- navigation ----------
@@ -610,6 +628,45 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     if (next) commit(next, `Skipped this time: ${task.title}`);
   }
 
+
+  // History: fix a typo in a cost or note, or remove an entry that was logged by mistake.
+  function openEditCompletion(c, trigger) {
+    const done = c.kind === "done";
+    const err = h("p", { class: "form-error", role: "alert" });
+    const cost = done ? h("input", { id: "ec-cost", type: "text", inputmode: "decimal", value: c.cost == null ? "" : String(c.cost), placeholder: "Optional" }) : null;
+    const notes = done ? h("textarea", { id: "ec-notes", rows: "3", maxlength: "2000" }) : null;
+    if (notes) notes.value = c.notes || "";
+    const count = notes ? h("p", { class: "hint", id: "ec-count", "aria-live": "polite" }) : null;
+    const upd = () => { if (count) count.textContent = notes.value.length > 1800 ? `${notes.value.length} of 2,000 characters` : ""; };
+    if (notes) notes.addEventListener("input", upd);
+    upd();
+    const form = h("form", { novalidate: true, onsubmit: (e) => {
+      e.preventDefault();
+      const patch = {};
+      if (done) {
+        const raw = cost.value.replace(/[$,\s]/g, "");
+        if (raw !== "" && !(Number(raw) >= 0)) { err.textContent = "Cost must be a number, 0 or more."; cost.focus(); return; }
+        patch.cost = raw === "" ? null : Math.round(Number(raw) * 100) / 100;
+        patch.notes = notes.value.trim();
+      }
+      try { const next = updateCompletion(state, c.id, patch); closeDialog(els.confirm); commit(next, "Saved the change"); } catch (ex) { err.textContent = errMsg(ex); }
+    } },
+      h("h2", { id: "confirm-dialog-title", text: "Edit history entry" }),
+      h("p", { class: "hint", text: `${c.title}, ${fmtDate(c.date)}${done ? "" : " (skipped)"}` }),
+      done ? h("div", { class: "field" }, h("label", { for: "ec-cost", text: "Cost ($)" }), cost) : null,
+      done ? h("div", { class: "field" }, h("label", { for: "ec-notes", text: "Notes" }), notes, count) : null,
+      err,
+      h("div", { class: "dialog-actions" },
+        h("button", { type: "button", class: "btn danger", id: "ec-delete", text: "Delete entry", onclick: async () => {
+          closeDialog(els.confirm);
+          if (!(await confirmDialog({ title: "Delete this entry?", message: "It disappears from History and spending. If it was the latest time this task was done, the task goes back to its previous date.", confirmLabel: "Delete", danger: true }))) return;
+          try { commit(deleteCompletion(state, c.id), "Deleted the history entry"); } catch (ex) { toast(errMsg(ex), { error: true }); }
+        } }),
+        h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => closeDialog(els.confirm) }),
+        done ? h("button", { type: "submit", class: "btn primary solid", text: "Save" }) : null));
+    openDialog(els.confirm, form, { trigger, focus: done ? "#ec-cost" : "#ec-delete" });
+  }
+
   // ---------- Complete dialog ----------
   function openComplete(task, trigger) {
     const added = [];
@@ -620,6 +677,8 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const cost = h("input", { id: "c-cost", type: "number", inputmode: "decimal", min: "0", step: "0.01", placeholder: estText ? `${est.source === "yours" ? "You paid" : "Typical"}: ${estText}` : "Optional" });
     const odo = vehicle ? h("input", { id: "c-odo", type: "number", inputmode: "numeric", min: "0", step: "1", value: String(vehicle.odometer) }) : null;
     const notes = h("textarea", { id: "c-notes", rows: "2", maxlength: "2000", placeholder: "Optional" });
+    const notesCount = h("p", { class: "hint", id: "c-notes-count", "aria-live": "polite" });
+    notes.addEventListener("input", () => { notesCount.textContent = notes.value.length > 1800 ? `${notes.value.length} of 2,000 characters${notes.value.length >= 2000 ? ". That is the limit." : ""}` : ""; });
     const err = h("p", { class: "form-error", role: "alert" });
     const strip = h("div", { class: "photo-strip" });
     const fileIn = h("input", { type: "file", accept: "image/*", id: "c-file", hidden: true, multiple: true });
@@ -676,7 +735,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       h("p", { class: "dialog-sub", text: task.title }),
       h("div", { class: "field" }, h("label", { for: "c-cost", text: "Cost ($)" }), cost),
       odo ? h("div", { class: "field" }, h("label", { for: "c-odo", text: `Odometer now (${vehicle.name})` }), odo) : null,
-      h("div", { class: "field" }, h("label", { for: "c-notes", text: "Notes" }), notes),
+      h("div", { class: "field" }, h("label", { for: "c-notes", text: "Notes" }), notes, notesCount),
       h("div", { class: "field" }, h("span", { class: "label-like", text: "Photos" }), strip, addBtn, fileIn, note),
       err,
       h("p", { class: "hint", text: "Cost, notes and photos are all optional." }),
@@ -875,7 +934,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     { icon: "\u{1F4C5}", title: "See it on the calendar", lines: [
       "The Calendar tab shows which days tasks, expiring supplies and warranties land on. Tap a day for details.",
       "Need more time? Move a task to a later day from that day's list.",
-      "Everyone in your household sees the same tasks. Use Assign on a task to split the work."] },
+      "Sharing with family? Sign in, then invite them from More, Account. Everyone in a household sees the same tasks, and Assign splits the work."] },
   ];
   function openTour(trigger) {
     let i = 0;
@@ -1161,6 +1220,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           if (!ok) return;
           try { const push = doc.defaultView.motPush; if (push && push.hour() != null) await push.disable(); } catch { /* the server drops dead subscriptions on its own */ }
           await auth.signOut();
+          try { doc.defaultView.localStorage.removeItem("motH.viewOnly"); } catch { /* ignore */ }
           doc.defaultView.location.reload();
         });
         setKids(wrap, 
@@ -1271,14 +1331,19 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const owner = info.role === "owner";
       const alone = info.members.length === 1;
       const kids = [h("h4", { text: "Household" })];
+      try { const was = viewOnly; viewOnly = info.can_edit === false; doc.defaultView.localStorage.setItem("motH.viewOnly", viewOnly ? "1" : "0"); if (was !== viewOnly) render(); } catch { /* ignore */ }
+      if (info.can_edit === false) kids.push(h("p", { class: "hint", text: "You have view-only access here: you can see everything, but only the owner and editors can change it." }));
       kids.push(h("p", { class: "hint", text: alone
         ? "Just you for now. Invite your partner or family so you all see and edit the same tasks, and everyone gets the morning reminder."
         : "Everyone here sees and edits the same tasks, history and photos." }));
       const list = h("ul", { class: "member-list" });
       for (const m of info.members) {
-        const li = h("li", {}, h("span", { text: `${m.email || "Someone"}${m.me ? " (you)" : ""} · ${m.role === "owner" ? "owner" : "member"}` }));
+        const li = h("li", {}, h("span", { text: `${m.email || "Someone"}${m.me ? " (you)" : ""} · ${m.role === "owner" ? "owner" : m.can_edit === false ? "view only" : "member"}` }));
         if (owner && !m.me) {
           li.append(" ",
+            h("button", { type: "button", class: "btn small", text: m.can_edit === false ? "Allow editing" : "Make view-only", onclick: async () => {
+              try { await api.setEdit(m.user_id, m.can_edit === false); toast(m.can_edit === false ? "They can edit now." : "They can only view now."); paint(); } catch (e) { fail(e); }
+            } }), " ",
             h("button", { type: "button", class: "btn small", text: "Make owner", onclick: async () => {
               if (!(await confirmDialog({ title: "Make them the owner?", message: `${m.email} will be able to invite and remove people. You become a regular member.`, confirmLabel: "Make owner" }))) return;
               try { await api.makeOwner(m.user_id); toast("Done."); paint(); } catch (e) { fail(e); }
@@ -1295,6 +1360,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         if (info.invite) {
           const left = Math.max(1, Math.ceil((new Date(info.invite.expires_at) - Date.now()) / 86400000));
           kids.push(
+            info.invite.view_only ? h("p", { class: "hint", text: "This invite is view-only: they can see everything but can't change it." }) : null,
             h("p", { class: "hint", text: `Give this code to the person (it works once and expires in ${left} day${left === 1 ? "" : "s"}). Easiest: tap Share invite link and send it. Or give them the code: after they sign in, the app asks for it (also under More, Account, Household).` }),
             h("p", { class: "invite-code", id: "s-invite-code", text: info.invite.code }),
             h("div", { class: "row-panel-actions wrap-actions" },
@@ -1306,7 +1372,9 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
               h("button", { type: "button", class: "btn", id: "s-invite-copy", text: "Copy code", onclick: async () => { try { await doc.defaultView.navigator.clipboard.writeText(info.invite.code); toast("Copied."); } catch { toast("Select the code and copy it.", { error: true }); } } }),
               h("button", { type: "button", class: "btn", id: "s-invite-cancel", text: "Cancel invite", onclick: async () => { try { await api.cancelInvite(); paint(); } catch (e) { fail(e); } } })));
         } else if (info.members.length < 6) {
-          kids.push(h("button", { type: "button", class: "btn", id: "s-invite", text: "Invite someone", onclick: async () => { try { await api.invite(); paint(); } catch (e) { fail(e); } } }));
+          kids.push(h("div", { class: "row-panel-actions wrap-actions" },
+            h("button", { type: "button", class: "btn", id: "s-invite", text: "Invite someone", onclick: async () => { try { await api.invite(false); paint(); } catch (e) { fail(e); } } }),
+            h("button", { type: "button", class: "btn", id: "s-invite-view", text: "Invite to view only", onclick: async () => { try { await api.invite(true); paint(); } catch (e) { fail(e); } } })));
         }
       }
       if (alone) {
@@ -1514,6 +1582,15 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     });
   } catch { /* optional */ }
 
+  // Escape closes an open inline form (Contacts, Family, vehicles, supplies...) the same as its Cancel button.
+  els.app.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    const t = e.target; const f = t && t.closest ? t.closest("form.v-form, form.v-inline-form") : null;
+    if (!f) return;
+    const cancel = f.querySelectorAll("button").find((b) => /^cancel$/i.test((b.textContent || "").trim()));
+    if (cancel) { e.preventDefault(); cancel.click(); }
+  });
+
   if (hist) {
     try { hist.replaceState({ v: active }, ""); } catch { /* ignore */ }
     window.addEventListener("popstate", (e) => {
@@ -1522,6 +1599,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     });
   }
   render();
+  refreshEditRights();
   if (!tourSeen() && state.profile && state.profile.setupDone && !loadError) openTour(null);
   else if (!loadError) setTimeout(() => {
     const a = authOf();

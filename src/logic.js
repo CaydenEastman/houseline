@@ -481,6 +481,31 @@ function complete(state, taskId, today, kind, opts) {
   };
 }
 
+/** Edit what was recorded for a finished task: the cost and the notes. Skipped entries have neither. */
+export function updateCompletion(state, id, patch) {
+  const i = (state.completions || []).findIndex((c) => c.id === id);
+  if (i < 0) throw new Error("That history entry no longer exists");
+  const c = state.completions[i];
+  const next = { ...c };
+  if ("cost" in patch && c.kind === "done") next.cost = validateCost(patch.cost);
+  if ("notes" in patch && c.kind === "done") next.notes = notesOf(patch.notes);
+  return { ...state, completions: mapAt(state.completions, i, () => next) };
+}
+
+/** Remove a history entry. If it was the latest one for its task, the task goes back to the one before (or "never done"). */
+export function deleteCompletion(state, id) {
+  const c = (state.completions || []).find((x) => x.id === id);
+  if (!c) throw new Error("That history entry no longer exists");
+  const completions = state.completions.filter((x) => x.id !== id);
+  const ti = state.tasks.findIndex((t) => t.id === c.taskId);
+  if (ti < 0 || state.tasks[ti].lastDone !== c.date) return { ...state, completions };
+  const prev = completions.filter((x) => x.taskId === c.taskId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))[0];
+  const task = state.tasks[ti];
+  const patch = { lastDone: prev ? prev.date : null };
+  if ((task.kind || "interval") === "mileage") patch.lastDoneOdometer = prev && prev.odometer != null ? prev.odometer : null;
+  return { ...state, completions, tasks: mapAt(state.tasks, ti, (t) => ({ ...t, ...patch })) };
+}
+
 /** opts: { cost, notes, odometer, by, photoIds, idFn? } */
 export function markDone(state, taskId, today, opts = {}) {
   return complete(state, taskId, today, "done", opts);
