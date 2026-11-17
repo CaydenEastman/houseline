@@ -25,17 +25,18 @@ async function summary(userId: string, today: string) {
   const { data: doc } = await sb.from("docs").select("data").eq("household_id", hh).eq("path", "household/main").limit(1);
   const state = doc && doc[0] && doc[0].data;
   if (!state || !Array.isArray(state.tasks)) return null;
-  let overdue = 0, due = 0;
+  let overdue = 0, due = 0, top: string | null = null, topDays = Infinity;
   for (const t of state.tasks) {
     if (t.snoozedUntil != null && t.snoozedUntil > today) continue;
     let d; try { d = dueInfo(t, state, today); } catch { continue; }
     if (d.daysUntil == null) continue;
     if (d.daysUntil < 0) overdue++; else if (d.daysUntil === 0) due++;
+    if (d.daysUntil <= 0 && d.daysUntil < topDays) { topDays = d.daysUntil; top = String(t.title); }
   }
   const parts: string[] = [];
   if (overdue) parts.push(`${overdue} overdue`);
   if (due) parts.push(`${due} due today`);
-  return { overdue, due, message: parts.length ? parts.join(" and ") : null };
+  return { overdue, due, message: parts.length ? `${parts.join(" and ")}. Most urgent: ${top}` : null };
 }
 
 Deno.serve(async (req) => {
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          JSON.stringify({ title: "Man of the House", body: `${sum.message}. Tap to open.`, url: SITE }),
+          JSON.stringify({ title: "Man of the House", body: `${sum.message}`, url: SITE }),
           { TTL: 12 * 3600, urgency: "normal" },
         );
         out.sent++;

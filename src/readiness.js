@@ -88,11 +88,22 @@ function model(state, today) {
   };
 }
 
+const PERSON_LINES = (p) => [
+  ["Allergies", p.allergies], ["Blood type", p.bloodType], [p.kind === "pet" ? "Health" : "Health", p.medical],
+  [p.kind === "pet" ? "Vet" : "Doctor", p.doctor], ["Needs", p.needs], ["Good to know", p.things], ["Phone", p.phone],
+].filter(([, v]) => v && String(v).trim());
+
 export function emergencySheetText(state, today) {
   const m = model(state, today);
   const dash = (v) => (v && String(v).trim() ? String(v) : "(not set)");
   const L = [];
   L.push("EMERGENCY INFORMATION SHEET", `Date: ${today}`, `Household size: ${m.size}`, "");
+  const ppl = state.people || [];
+  if (ppl.length) {
+    L.push("PEOPLE AND PETS");
+    for (const p of ppl) { L.push(`  ${p.name} (${p.kind})`); for (const [k, v] of PERSON_LINES(p)) L.push(`    ${k}: ${v}`); }
+    L.push("");
+  }
   L.push("CONTACTS");
   if (!m.contacts.length) L.push("  (none)");
   for (const c of m.contacts) L.push(`  - ${c.name || "(no name)"}${c.relation ? ` (${c.relation})` : ""}: ${c.phone || "(no phone)"}`);
@@ -106,6 +117,7 @@ export function emergencySheetText(state, today) {
   if (m.r.expired.length) L.push("", "EXPIRED");
   for (const s of m.r.expired) L.push(`  - ${s.name}: ${s.expires}`);
   L.push("", "NOTES", `  ${m.notes ? m.notes.replace(/\n/g, "\n  ") : "(none)"}`, "");
+  if (ppl.length) L.push("This sheet has personal and health details. Keep it somewhere private.");
   L.push("To print: open this page and press Ctrl+P (Windows/Linux) or Cmd+P (Mac).");
   return L.join("\n");
 }
@@ -127,6 +139,10 @@ export function emergencySheetHTML(state, today) {
   const expired = m.r.expired.length
     ? `<h2>Expired</h2><ul>${m.r.expired.map((s) => `<li>${esc(s.name)}: ${esc(s.expires)}</li>`).join("")}</ul>`
     : "";
+  const ppl = state.people || [];
+  const peopleHtml = ppl.length
+    ? `<h2>People and pets</h2>${ppl.map((p) => `<div class="person"><strong>${esc(p.name)}</strong> (${esc(p.kind)})<ul>${PERSON_LINES(p).map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`).join("")}</ul></div>`).join("")}`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Emergency Information Sheet</title>
@@ -135,17 +151,17 @@ body{font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#11
 h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.1rem;margin:22px 0 6px;border-bottom:2px solid #111;padding-bottom:2px}
 table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:6px 8px;text-align:left}th{background:#eee}
 .muted{color:#555}.notes{white-space:pre-wrap}.tip{margin-top:24px;font-size:.9rem;color:#333}
-@media print{body{padding:0;max-width:none}.tip{font-size:.8rem}h2{break-after:avoid}table,li{break-inside:avoid}}
+@media print{.noprint{display:none}body{padding:0;max-width:none}.person{break-inside:avoid}.tip{font-size:.8rem}h2{break-after:avoid}table,li{break-inside:avoid}}
 </style></head><body>
 <h1>Emergency Information Sheet</h1>
 <p>Date: ${esc(today)} &middot; Household size: ${esc(m.size)}</p>
-<h2>Contacts</h2>${contacts}
+${peopleHtml}<h2>Contacts</h2>${contacts}
 <h2>Meeting place</h2><p>${dash(m.meeting)}</p>
 <h2>Out-of-area contact</h2><p>${dash(m.outOfArea)}</p>
 <h2>Utility shutoffs</h2><ul>${m.shutoffs.map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${dash(v)}</li>`).join("")}</ul>
 <h2>Readiness: ${esc(m.r.score)}/100</h2>${missing}${expiring}${expired}
 <h2>Notes</h2><p class="notes">${m.notes ? esc(m.notes) : '<span class="muted">(none)</span>'}</p>
-<p class="tip">Print this page: press Ctrl+P (Windows/Linux) or Cmd+P (Mac).</p>
+<p class="tip">${ppl.length ? 'This sheet has personal and health details. Keep it somewhere private. ' : ''}Print this page: press Ctrl+P (Windows/Linux) or Cmd+P (Mac).</p>
 </body></html>
 `;
 }

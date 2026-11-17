@@ -27,18 +27,19 @@ export function isStandalone() {
 
 /** { overdue, today, soon } counts of open tasks, plus a one-line message (or null when nothing is due). */
 export function dueSummary(state, today) {
-  let overdue = 0, due = 0;
+  let overdue = 0, due = 0, top = null, topDays = Infinity;
   for (const t of (state && state.tasks) || []) {
     if (t.snoozedUntil != null && t.snoozedUntil > today) continue;
     let d; try { d = dueInfo(t, state, today); } catch { continue; }
     if (d.daysUntil == null) continue;
     if (d.daysUntil < 0) overdue++;
     else if (d.daysUntil === 0) due++;
+    if (d.daysUntil <= 0 && d.daysUntil < topDays) { topDays = d.daysUntil; top = t.title; }
   }
   const parts = [];
   if (overdue) parts.push(`${overdue} overdue`);
   if (due) parts.push(`${due} due today`);
-  return { overdue, due, message: parts.length ? parts.join(" and ") : null };
+  return { overdue, due, top, message: parts.length ? `${parts.join(" and ")}. Most urgent: ${top}` : null };
 }
 
 export function remindersOn(ls) {
@@ -54,7 +55,7 @@ export async function maybeNotify({ ls, state, today, reg }) {
     if (!message) return false;
     const r = reg || (navigator.serviceWorker && await navigator.serviceWorker.getRegistration());
     if (!r || !r.showNotification) return false;
-    await r.showNotification("Man of the House", { body: message + ". Tap to open.", icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "moth-daily" });
+    await r.showNotification("Man of the House", { body: message, icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "moth-daily" });
     ls.setItem(KEY_DAY, today);
     return true;
   } catch { return false; }

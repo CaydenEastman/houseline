@@ -91,6 +91,22 @@ function annualDue(task, today) {
   }
 }
 
+
+/** Season window (month numbers, may wrap the new year) for tasks that only make sense part of the year. */
+function inSeason(task, month) {
+  const a = task.seasonStart, b = task.seasonEnd;
+  if (!Number.isInteger(a) || !Number.isInteger(b)) return true;
+  return a <= b ? month >= a && month <= b : month >= a || month <= b;
+}
+/** A due date that falls out of season waits for the first day of the next season. */
+function seasonAdjust(task, iso) {
+  if (!Number.isInteger(task.seasonStart) || !Number.isInteger(task.seasonEnd)) return iso;
+  if (inSeason(task, Number(iso.slice(5, 7)))) return iso;
+  const y = Number(iso.slice(0, 4));
+  const a = isoYMD(y, task.seasonStart, 1);
+  return a >= iso ? a : isoYMD(y + 1, task.seasonStart, 1);
+}
+
 export function dueInfo(task, state, today) {
   parseISO(today);
   const kind = task.kind || "interval";
@@ -128,9 +144,9 @@ export function dueInfo(task, state, today) {
   }
 
   // interval
-  if (task.lastDone != null) return out(addDays(task.lastDone, task.intervalDays), null, "date");
-  if (task.startDate != null) return out(task.startDate, null, "start");
-  return out(today, null, "never");
+  if (task.lastDone != null) return out(seasonAdjust(task, addDays(task.lastDone, task.intervalDays)), null, "date");
+  if (task.startDate != null) return out(seasonAdjust(task, task.startDate), null, "start");
+  return out(seasonAdjust(task, today), null, "never");
 }
 
 export function statusOf(task, today, state) {

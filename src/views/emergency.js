@@ -292,7 +292,7 @@ function sheetPanel(ctx, state, today, rerender) {
   return h("section", { class: "v-panel", "aria-labelledby": "v-sheet-h" },
     h("h3", { id: "v-sheet-h", class: "v-h3", text: "4. Emergency sheet" }),
     h("p", { class: "v-lede", text: "One page with your contacts, shutoffs and readiness. Keep a paper copy on the fridge or in your go-bag, since phones die." }),
-    h("p", { class: "v-hint", text: "This page has no print button. Download the sheet, open the file in your browser, then press Ctrl+P (Cmd+P on a Mac). The sheet uses your saved info, so save the form above first." }),
+    h("p", { class: "v-hint", text: "This page has no print button. Download the sheet, open the file in your browser, then press Ctrl+P (Cmd+P on a Mac). People and pets from the Family screen are included. The sheet uses your saved info, so save the form above first." }),
     h("div", { class: "v-actions" },
       h("button", { type: "button", class: "btn v-primary", "data-fk": "v-sheet-dl", text: "Download .html", onclick: download }),
       h("button", { type: "button", class: "btn", "data-fk": "v-sheet-copy", text: "Copy text", onclick: copy })),

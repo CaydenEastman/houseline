@@ -20,6 +20,14 @@ export const LIMITS = {
   links: 5, photos: 3, contacts: 12, assignee: 200, key: 40, unit: 40, url: 500, make: 60, spec: 100,
 };
 
+// People in the household (and pets): shared with everyone in it, so only what helps in an emergency.
+export const PEOPLE_MAX = 20;
+export const PERSON_KINDS = ["adult", "child", "pet"];
+export const PERSON_KIND_LABEL = { adult: "Adult", child: "Child", pet: "Pet" };
+export const BLOOD_TYPES = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+export const PERSON_TEXT = ["phone", "allergies", "medical", "doctor", "things", "needs"];
+export const PERSON_LIMIT = { phone: 60, allergies: 300, medical: 500, doctor: 200, things: 500, needs: 300 };
+
 /** Things worth writing down once per vehicle so the task for it can show them (stored flat so two phones merge cleanly). */
 export const VEHICLE_SPECS = [
   { key: "oilType", label: "Oil type", hint: "For example 5W-30 full synthetic" },
@@ -134,6 +142,22 @@ function annualDue(task, today) {
  * { dueDate, daysUntil, milesLeft, basis }  basis: "date" | "miles" | "start" | "never".
  * `state` is only needed for mileage tasks (vehicle odometer); may be undefined.
  */
+
+/** Season window (month numbers, may wrap the new year) for tasks that only make sense part of the year. */
+export function inSeason(task, month) {
+  const a = task.seasonStart, b = task.seasonEnd;
+  if (!Number.isInteger(a) || !Number.isInteger(b)) return true;
+  return a <= b ? month >= a && month <= b : month >= a || month <= b;
+}
+/** A due date that falls out of season waits for the first day of the next season. */
+function seasonAdjust(task, iso) {
+  if (!Number.isInteger(task.seasonStart) || !Number.isInteger(task.seasonEnd)) return iso;
+  if (inSeason(task, Number(iso.slice(5, 7)))) return iso;
+  const y = Number(iso.slice(0, 4));
+  const a = isoYMD(y, task.seasonStart, 1);
+  return a >= iso ? a : isoYMD(y + 1, task.seasonStart, 1);
+}
+
 export function dueInfo(task, state, today) {
   parseISO(today);
   const kind = task.kind || "interval";
@@ -172,9 +196,9 @@ export function dueInfo(task, state, today) {
   }
 
   // interval
-  if (task.lastDone != null) return out(addDays(task.lastDone, task.intervalDays), null, "date");
-  if (task.startDate != null) return out(task.startDate, null, "start");
-  return out(today, null, "never");
+  if (task.lastDone != null) return out(seasonAdjust(task, addDays(task.lastDone, task.intervalDays)), null, "date");
+  if (task.startDate != null) return out(seasonAdjust(task, task.startDate), null, "start");
+  return out(seasonAdjust(task, today), null, "never");
 }
 
 export function nextDue(task, today, state) {
@@ -319,6 +343,10 @@ function normalizeTask(raw, state) {
     notes: notesOf(raw.notes),
     custom: raw.custom === undefined ? true : !!raw.custom,
   };
+  if (kind === "interval" && raw.seasonStart != null && raw.seasonEnd != null) {
+    task.seasonStart = intIn(raw.seasonStart, "Season start", 1, 12);
+    task.seasonEnd = intIn(raw.seasonEnd, "Season end", 1, 12);
+  }
   if (kind === "interval") {
     task.intervalDays = validateInterval(raw.intervalDays);
   } else if (kind === "annual") {
@@ -673,6 +701,41 @@ export function deleteSupply(state, id) {
   return { ...state, supplies: state.supplies.filter((x) => x.id !== id) };
 }
 
+
+// ---------- people ----------
+
+function normalizePerson(raw) {
+  const kind = raw.kind == null || raw.kind === "" ? "adult" : raw.kind;
+  if (!PERSON_KINDS.includes(kind)) throw new Error("Pick adult, child or pet");
+  const bloodType = raw.bloodType == null ? "" : String(raw.bloodType);
+  if (!BLOOD_TYPES.includes(bloodType)) throw new Error("Blood type isn't one of the usual types");
+  const out = { id: String(raw.id), name: str(raw.name, "Name", LIMITS.name, { required: true }), kind, bloodType };
+  for (const k of PERSON_TEXT) out[k] = str(raw[k], k[0].toUpperCase() + k.slice(1), PERSON_LIMIT[k]);
+  return out;
+}
+
+export function addPerson(state, partial, idFn) {
+  if (typeof idFn !== "function") throw new Error("addPerson requires an id generator function");
+  if (!partial || typeof partial !== "object") throw new Error("Details are required");
+  const p = normalizePerson({ ...partial, id: idFn() });
+  const people = state.people || [];
+  if (people.length >= PEOPLE_MAX) throw new Error(`That's the maximum of ${PEOPLE_MAX} people`);
+  if (people.some((x) => x.id === p.id)) throw new Error(`Duplicate person id: ${p.id}`);
+  return { ...state, people: [...people, p] };
+}
+
+export function updatePerson(state, id, patch) {
+  const i = (state.people || []).findIndex((x) => x.id === id);
+  if (i < 0) throw new Error(`Person not found: ${id}`);
+  if (!patch || typeof patch !== "object") throw new Error("Patch must be an object");
+  const next = normalizePerson({ ...state.people[i], ...patch, id });
+  return { ...state, people: mapAt(state.people, i, () => next) };
+}
+
+export function deletePerson(state, id) {
+  if (!(state.people || []).some((x) => x.id === id)) throw new Error(`Person not found: ${id}`);
+  return { ...state, people: state.people.filter((x) => x.id !== id) };
+}
 
 // ---------- vendors / contractors ----------
 

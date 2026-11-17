@@ -94,12 +94,12 @@ export function joinImpact(state) {
   const st = state || {};
   const n = (k) => (Array.isArray(st[k]) ? st[k].length : 0);
   const done = n("completions");
-  const own = { tasks: n("tasks"), vehicles: n("vehicles"), items: n("items"), supplies: n("supplies"), vendors: n("vendors") };
+  const own = { tasks: n("tasks"), vehicles: n("vehicles"), items: n("items"), supplies: n("supplies"), vendors: n("vendors"), people: n("people") };
   // Only the starter list, nothing finished and nothing added by hand: there is nothing of theirs to lose.
-  const untouched = done === 0 && !own.vehicles && !own.items && !own.supplies && !own.vendors;
+  const untouched = done === 0 && !own.vehicles && !own.items && !own.supplies && !own.vendors && !own.people;
   const parts = [];
   const add = (c, word, many) => { if (c) parts.push(`${c} ${c === 1 ? word : many || word + "s"}`); };
-  add(own.tasks, "task"); add(own.vehicles, "vehicle"); add(own.items, "home item"); add(own.supplies, "emergency supply", "emergency supplies"); add(own.vendors, "contact");
+  add(own.tasks, "task"); add(own.vehicles, "vehicle"); add(own.items, "home item"); add(own.supplies, "emergency supply", "emergency supplies"); add(own.vendors, "contact"); add(own.people, "family profile");
   if (done) parts.push(`${done} finished ${done === 1 ? "task" : "tasks"} in your history`);
   return { untouched, summary: parts.join(", "), counts: { ...own, completions: done } };
 }

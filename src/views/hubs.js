@@ -39,6 +39,7 @@ export const homeView = {
       { id: "inventory", icon: "\u{1F4E6}", label: "Appliances", sub: (s.items || []).length ? `${plural(s.items.length, "item")}, warranties and manuals` : "Add appliances to keep warranties and manuals handy", onclick: go(ctx, "inventory"), badge: badge(warr, "soon", `${warr} warranty alerts`) },
       { id: "vehicles", icon: "\u{1F697}", label: "Vehicles", sub: (s.vehicles || []).length ? `${plural(s.vehicles.length, "vehicle")} and mileage` : "Add a car to track mileage and service", onclick: go(ctx, "vehicles"), badge: badge(milesDue, "overdue", `${milesDue} overdue by mileage`) },
       { id: "vendors", icon: "\u{1F4DE}", label: "Contacts", sub: (s.vendors || []).length ? `${plural(s.vendors.length, "contact")}: plumber, electrician and more` : "Save your plumber, electrician and other contacts", onclick: go(ctx, "vendors") },
+      { id: "people", icon: "\u{1F46A}", label: "Family", sub: (s.people || []).length ? `${s.people.length === 1 ? "1 person or pet" : `${s.people.length} people and pets`}, with emergency info` : "Add who lives here and what they need in an emergency", onclick: go(ctx, "people") },
       { id: "emergency", icon: "\u{1F6DF}", label: "Emergency", sub: `${open ? plural(open, "supply item") + " and " : ""}plans and contacts`, onclick: go(ctx, "emergency"), badge: badge(supplyIssues, "soon", `${supplyIssues} supply items expired or expiring`) },
     ]);
   },

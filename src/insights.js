@@ -110,6 +110,18 @@ export function mileageFlags(state, today, { miles = 500, days = 21 } = {}) {
   return out.sort((a, b) => a.milesLeft - b.milesLeft);
 }
 
+/** Vehicles with mileage reminders whose odometer reading is older than `days`, so those reminders are going stale. */
+export function staleOdometers(state, today, days = 30) {
+  const withMileage = new Set((state.tasks || []).filter((t) => t.kind === "mileage").map((t) => t.vehicleId));
+  const out = [];
+  for (const v of state.vehicles || []) {
+    if (!withMileage.has(v.id)) continue;
+    const age = v.odometerDate ? daysBetween(v.odometerDate, today) : 9999;
+    if (age >= days) out.push({ vehicle: v, ageDays: age });
+  }
+  return out;
+}
+
 // ---------- workload ----------
 /** Per person: how many open, overdue, due-soon tasks. `nameOf(id)` turns an assignee id into a display name. */
 export function workload(state, today, nameOf = (id) => id) {
@@ -170,6 +182,26 @@ export function costByItem(state, { hintAt = 300 } = {}) {
   return [...totals.entries()]
     .filter(([id]) => items.has(id))
     .map(([id, r]) => ({ item: items.get(id), total: Math.round(r.total * 100) / 100, count: r.count, hint: r.total >= hintAt ? "Costly to keep up. If it's old, compare with replacing it." : null }))
+    .sort((a, b) => b.total - a.total);
+}
+
+/** Cost per vehicle (via the task's vehicleId): all time and for `year`, highest first. */
+export function costByVehicle(state, year) {
+  const taskVeh = new Map((state.tasks || []).filter((t) => t.vehicleId).map((t) => [t.id, t.vehicleId]));
+  const totals = new Map();
+  for (const c of state.completions || []) {
+    if (c.kind !== "done" || typeof c.cost !== "number" || !(c.cost > 0)) continue;
+    const id = taskVeh.get(c.taskId);
+    if (!id) continue;
+    const r = totals.get(id) || { total: 0, thisYear: 0, count: 0 };
+    r.total += c.cost; r.count++;
+    if (year && String(c.date).startsWith(String(year))) r.thisYear += c.cost;
+    totals.set(id, r);
+  }
+  const vs = new Map((state.vehicles || []).map((v) => [v.id, v]));
+  const r2 = (n) => Math.round(n * 100) / 100;
+  return [...totals.entries()].filter(([id]) => vs.has(id))
+    .map(([id, r]) => ({ vehicle: vs.get(id), total: r2(r.total), thisYear: r2(r.thisYear), count: r.count }))
     .sort((a, b) => b.total - a.total);
 }
 

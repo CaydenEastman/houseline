@@ -20,12 +20,13 @@ import * as calendarView from "./views/calendar.js";
 import * as todayView from "./views/today.js";
 import * as insightsView from "./views/insights.js";
 import * as vendorsView from "./views/vendors.js";
+import * as peopleView from "./views/people.js";
 import { homeView, youView } from "./views/hubs.js";
 import { quickForm } from "./quickform.js";
 import * as pwa from "./pwa.js";
 import { helpPanel } from "./views/help.js";
 import { exportEverything, photoIdsOf, clearLocalCache, joinImpact, householdError, formatCode } from "./household.js";
-import { inviteLink, pendingJoin, clearJoin } from "./invite.js";
+import { inviteLink, pendingJoin, clearJoin, checkMembers, memberLabel } from "./invite.js";
 
 export { localToday };
 
@@ -40,6 +41,7 @@ const TABS = [
   { id: "inventory", label: inventoryView.label || "Inventory", icon: "\u{1F4E6}", view: inventoryView },
   { id: "vehicles", label: vehiclesView.label || "Vehicles", icon: "\u{1F697}", view: vehiclesView },
   { id: "vendors", label: vendorsView.label || "Vendors", icon: "\u{1F4DE}", view: vendorsView },
+  { id: "people", label: peopleView.label || "Family", icon: "\u{1F46A}", view: peopleView },
   { id: "emergency", label: emergencyView.label || "Emergency", icon: "\u{1F6DF}", view: emergencyView },
   { id: "calendar", label: calendarView.label || "Calendar", icon: "\u{1F4C5}", view: calendarView },
   { id: "insights", label: insightsView.label || "Insights", icon: "\u{1F4CA}", view: insightsView },
@@ -47,7 +49,7 @@ const TABS = [
   { id: "you", label: "More", icon: "\u{1F464}", view: youView },
 ];
 // Screens reached from the Home and You tiles. The bottom bar keeps the parent lit and a back bar leads home.
-const PARENT = { tasks: "home", inventory: "home", vehicles: "home", vendors: "home", emergency: "home", history: "you", insights: "you" };
+const PARENT = { tasks: "home", inventory: "home", vehicles: "home", vendors: "home", people: "home", emergency: "home", history: "you", insights: "you" };
 
 const fmtN = fmtNum;
 const newId = () => "t-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1471,6 +1473,23 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   let lastDay = today;
   const tick = () => { const d = localToday(); if (d !== lastDay) { lastDay = d; render(); } };
   setInterval(tick, 60000);
-  doc.addEventListener("visibilitychange", () => { if (!doc.hidden) tick(); });
+  // Tell people already in a household when someone new joins it (checked when the app opens and every few minutes).
+  let lastMemberCheck = 0;
+  async function announceJoiners() {
+    try {
+      const api = hhApi(); const a = authOf(); const sess = a && a.session && a.session();
+      if (!api || !sess || !sess.user || Date.now() - lastMemberCheck < 120000) return;
+      lastMemberCheck = Date.now();
+      const info = await api.info();
+      if (!info || !Array.isArray(info.members)) return;
+      const fresh = checkMembers(doc.defaultView.localStorage, sess.user.id, info.members);
+      if (!fresh.length) return;
+      const names = fresh.map(memberLabel);
+      const who = names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} and ${names[1]}` : `${names[0]} and ${names.length - 1} others`;
+      toast(`${who} joined your household. Not expected? Open More, then Account to review members.`, { ms: 20000 });
+    } catch { /* a notice is never worth an error */ }
+  }
+  setTimeout(announceJoiners, 1500);
+  doc.addEventListener("visibilitychange", () => { if (!doc.hidden) { tick(); announceJoiners(); } });
   return { render, ctx, getState: () => state };
 }

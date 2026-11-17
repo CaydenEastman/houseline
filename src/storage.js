@@ -3,6 +3,7 @@ import { CATEGORIES } from "./templates.js";
 import {
   isValidISO, LIMITS, TASK_KINDS, ITEM_KINDS, SUPPLY_CATEGORIES, HOME_TYPES, CLIMATE_TYPES, HOME_AGE_TYPES,
   MAX_INTERVAL_DAYS, MAX_INTERVAL_MILES, MAX_ODOMETER, MAX_ODOMETER_LOG, MAX_COST, VEHICLE_SPECS,
+  PEOPLE_MAX, PERSON_KINDS, BLOOD_TYPES, PERSON_TEXT, PERSON_LIMIT,
 } from "./logic.js";
 
 export const STORAGE_KEY = "motH.v1"; // key kept from v1 so existing data migrates in place
@@ -10,7 +11,7 @@ export const BACKUP_KEY = STORAGE_KEY + ".corrupt";
 export const STATE_VERSION = 2;
 export const MAX_STATE_BYTES = 900_000;
 
-const TOP_KEYS = ["version", "profile", "vehicles", "items", "supplies", "tasks", "completions", "emergency", "vendors"];
+const TOP_KEYS = ["version", "profile", "vehicles", "items", "supplies", "tasks", "completions", "emergency", "vendors", "people"];
 const isObj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
 const isInt = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
 const isISO = isValidISO;
@@ -86,6 +87,19 @@ export function validateState(s) {
     });
   }
 
+  if (s.people !== undefined) {
+    need(Array.isArray(s.people) && s.people.length <= PEOPLE_MAX, `State.people must be a list of at most ${PEOPLE_MAX}`);
+    checkIds(s.people, "people");
+    s.people.forEach((x, i) => {
+      const p = `people[${i}]`;
+      need(isObj(x), `${p} must be an object`);
+      need(typeof x.name === "string" && x.name.trim() !== "" && x.name.length <= LIMITS.name, `${p}.name must be 1-${LIMITS.name} characters`);
+      need(PERSON_KINDS.includes(x.kind), `${p}.kind is invalid`);
+      need(BLOOD_TYPES.includes(x.bloodType), `${p}.bloodType is invalid`);
+      for (const k of PERSON_TEXT) need(strMax(x[k], PERSON_LIMIT[k]), `${p}.${k} must be a string of at most ${PERSON_LIMIT[k]} characters`);
+    });
+  }
+
   const iIds = checkIds(s.items, "items");
   s.items.forEach((it, i) => {
     const p = `items[${i}]`;
@@ -128,6 +142,7 @@ export function validateState(s) {
       need(typeof t.vehicleId === "string" && vIds.has(t.vehicleId), `${p}.vehicleId must reference an existing vehicle`);
       need(t.lastDoneOdometer === null || isInt(t.lastDoneOdometer, 0, MAX_ODOMETER), `${p}.lastDoneOdometer must be a whole number >= 0 or null`);
     }
+    need((t.seasonStart == null && t.seasonEnd == null) || (t.kind === "interval" && isInt(t.seasonStart, 1, 12) && isInt(t.seasonEnd, 1, 12)), `${p}.seasonStart/seasonEnd must be months 1-12 on an interval task, or both absent`);
     if (t.kind !== "annual") need(t.month === null && t.day === null, `${p}.month/day must be null unless annual`);
     if (t.kind !== "mileage") {
       need(t.intervalMiles === null && t.lastDoneOdometer === null, `${p} has mileage fields but is not a mileage task`);

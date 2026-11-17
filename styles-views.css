@@ -397,3 +397,6 @@ dialog *, .add-grid > * { min-width: 0; }
 .quiet-days legend { font-weight: 600; margin-bottom: 0.4rem; padding: 0; }
 .quiet-days .chip-check { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 44px; margin-right: 0.6rem; }
 .quiet-days input { width: 1.25rem; height: 1.25rem; }
+
+.v-panel .row { display: flex; gap: .5rem; align-items: center; }
+.v-panel .row input { flex: 1 1 auto; min-width: 0; }

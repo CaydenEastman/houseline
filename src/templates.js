@@ -12,8 +12,8 @@ const MULTI = { homeType: ["condo", "apartment"] };
 const tag = (...a) => a;
 
 // interval
-const iv = (category, title, intervalDays, notes, tags = [], requires) =>
-  mk({ title, category, kind: "interval", intervalDays, notes, tags }, requires);
+const iv = (category, title, intervalDays, notes, tags = [], requires, season) =>
+  mk({ title, category, kind: "interval", intervalDays, notes, tags, ...(season ? { seasonStart: season[0], seasonEnd: season[1] } : {}) }, requires);
 // annual (fixed calendar date; day 1..28)
 const an = (category, title, month, day, notes, tags = [], requires) =>
   mk({ title, category, kind: "annual", month, day, notes, tags }, requires);
@@ -79,19 +79,19 @@ export const TEMPLATES = [
   iv("emergency", "Refresh pet emergency supplies", 180, "Food, water, meds, leash, carrier, and vet records.", tag("pets"), { hasPets: true }),
 
   // ---- Yard ----
-  iv("yard", "Mow lawn", 7, "Weekly in growing season; never cut more than a third of the blade.", tag("lawn"), YARD),
+  iv("yard", "Mow lawn", 7, "Weekly in growing season; never cut more than a third of the blade.", tag("lawn"), YARD, [4, 10]),
   an("yard", "Winterize sprinklers", 10, 15, "Blow out lines before the first hard freeze.", tag("sprinklers", "winter"), YARD),
   an("yard", "Start up sprinklers", 4, 15, "Check heads, leaks, and timer settings.", tag("sprinklers"), YARD),
-  iv("yard", "Fertilize lawn", 90, "Follow the schedule for your grass type.", tag("lawn"), YARD),
+  iv("yard", "Fertilize lawn", 90, "Follow the schedule for your grass type.", tag("lawn"), YARD, [4, 9]),
   an("yard", "Aerate lawn", 9, 15, "Best done in early fall for cool-season grass.", tag("lawn"), YARD),
   iv("yard", "Trim trees and shrubs", 180, "Remove dead branches and keep clear of the roof.", tag("trees"), YARD),
   iv("yard", "Service lawn mower", 365, "Sharpen blade, change oil, replace spark plug and air filter.", tag("mower"), YARD),
-  iv("yard", "Weed beds and refresh mulch", 90, "Mulch 2-3 inches deep, away from trunks and foundation.", tag("garden"), YARD),
-  iv("yard", "Clean up leaves", 14, "Rake or mulch leaves in fall to protect the lawn.", tag("lawn"), YARD),
+  iv("yard", "Weed beds and refresh mulch", 90, "Mulch 2-3 inches deep, away from trunks and foundation.", tag("garden"), YARD, [4, 9]),
+  iv("yard", "Clean up leaves", 14, "Rake or mulch leaves in fall to protect the lawn.", tag("lawn"), YARD, [10, 11]),
 
   // ---- Pool ----
-  iv("yard", "Test pool water chemistry", 7, "Check chlorine/pH/alkalinity and adjust.", tag("pool"), POOL),
-  iv("yard", "Clean pool filter", 90, "Backwash or rinse cartridges per filter type.", tag("pool"), POOL),
+  iv("yard", "Test pool water chemistry", 7, "Check chlorine/pH/alkalinity and adjust.", tag("pool"), POOL, [5, 9]),
+  iv("yard", "Clean pool filter", 90, "Backwash or rinse cartridges per filter type.", tag("pool"), POOL, [5, 9]),
   an("yard", "Open pool for the season", 5, 1, "Remove cover, balance water, start pump.", tag("pool"), POOL),
   an("yard", "Close pool for the season", 10, 1, "Balance water, lower level, winterize plumbing, cover.", tag("pool", "winter"), POOL),
   an("yard", "Inspect pool equipment and safety gear", 4, 20, "Pump, heater, fence gate latch, drain covers, life ring.", tag("pool", "safety"), POOL),
@@ -144,6 +144,7 @@ function instantiate(tpl, id, extra = {}) {
     ...(tpl.intervalDays != null ? { intervalDays: tpl.intervalDays } : {}),
     ...(tpl.month != null ? { month: tpl.month, day: tpl.day } : {}),
     ...(tpl.intervalMiles != null ? { intervalMiles: tpl.intervalMiles } : {}),
+    ...(tpl.seasonStart != null ? { seasonStart: tpl.seasonStart, seasonEnd: tpl.seasonEnd } : {}),
     links: [],
     tags: [...(tpl.tags || [])],
     notes: tpl.notes,

@@ -1,21 +1,21 @@
 // Today: a simple feed. Top line says what needs doing, chips filter by area, big cards each have one clear Done button.
 import { helpPanel } from "./help.js";
-import { milesText, fmtDate } from "../dom.js";
-import { snoozeTask, addDays } from "../logic.js";
-import { agenda, homeScore, seasonNudges, mileageFlags, CAT_LABEL } from "../insights.js";
+import { milesText, fmtDate, fmtNum } from "../dom.js";
+import { snoozeTask, addDays, setOdometer } from "../logic.js";
+import { agenda, homeScore, seasonNudges, mileageFlags, staleOdometers, CAT_LABEL } from "../insights.js";
 import { estimateFor, rangeText } from "../costs.js";
 import { makePaint, plural, dueWords } from "./shared.js";
 
 export const id = "today";
 export const label = "Today";
-const S = { pending: null, sel: new Set(), selecting: false, cat: "all", scoreOpen: false, showAll: false };
+const S = { pending: null, sel: new Set(), selecting: false, cat: "all", scoreOpen: false, showAll: false, ideasHidden: false };
 const FEED_LIMIT = 10; // the most urgent are shown first; the rest sit behind "Show more"
 const FEED_SLACK = 3;  // not worth hiding for just a few extra
 const CAT_ICON = { car: "\u{1F697}", house: "\u{1F3E0}", yard: "\u{1F33F}", emergency: "\u{1F6DF}" };
 const paint = makePaint(S);
 
 /** Reset module state (tests mount several views in one process). */
-export function resetTodayView() { S.pending = null; S.sel = new Set(); S.selecting = false; S.cat = "all"; S.scoreOpen = false; S.showAll = false; }
+export function resetTodayView() { S.pending = null; S.sel = new Set(); S.selecting = false; S.cat = "all"; S.scoreOpen = false; S.showAll = false; S.ideasHidden = false; }
 
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
@@ -30,6 +30,7 @@ function build(ctx, rerender) {
   const a = agenda(state, today, 7);
   const nudges = seasonNudges(state, today, 3);
   const flags = mileageFlags(state, today);
+  const stale = staleOdometers(state, today);
   const go = (tab) => () => { if (typeof ctx.setView === "function") ctx.setView(tab, true); };
 
   const all = [...a.overdue.map((r) => ({ ...r, group: "Overdue" })), ...a.today.map((r) => ({ ...r, group: "Today" })), ...a.week.map((r) => ({ ...r, group: "This week" }))];
@@ -131,9 +132,34 @@ function build(ctx, rerender) {
       ` · ${f.vehicle ? f.vehicle.name : "vehicle"} · `,
       milesText(f.milesLeft))))) : null;
 
+  const odoCard = stale.length ? h("section", { class: "v-panel", "aria-labelledby": "v-odo-h" },
+    h("h3", { id: "v-odo-h", class: "v-h3", text: "Update your mileage" }),
+    h("p", { class: "v-hint", text: "Car reminders are only as good as the odometer reading. It takes a few seconds." }),
+    ...stale.map(({ vehicle: v, ageDays }) => {
+      const inp = h("input", { type: "number", inputmode: "numeric", min: String(v.odometer), step: "1", id: `odo-${v.id}`, placeholder: String(v.odometer), "aria-label": `Odometer for ${v.name}` });
+      const err = h("p", { class: "form-error", role: "alert", hidden: true });
+      const save = () => {
+        const n = Number(inp.value);
+        if (inp.value.trim() === "" || !Number.isInteger(n)) { err.textContent = "Type the whole number of miles."; err.hidden = false; return; }
+        try { ctx.commit(setOdometer(ctx.getState(), v.id, n, today), `${v.name} updated to ${fmtNum(n)} miles`); }
+        catch (e) { err.textContent = e.message || "Couldn't save that."; err.hidden = false; }
+      };
+      return h("div", { class: "field" },
+        h("label", { for: `odo-${v.id}`, text: `${v.name}: last updated ${ageDays > 3650 ? "a long time ago" : plural(ageDays, "day") + " ago"} (${fmtNum(v.odometer)} mi)` }),
+        h("div", { class: "row" }, inp, h("button", { type: "button", class: "btn", text: "Save", onclick: save })), err);
+    })) : null;
+
+  const ideaCard = state.profile && state.profile.setupDone && !state.profile.homeAge && (state.completions || []).length >= 3 && !S.ideasHidden
+    ? h("section", { class: "v-panel", "aria-labelledby": "v-idea-h" },
+      h("h3", { id: "v-idea-h", class: "v-h3", text: "More tasks for your home" }),
+      h("p", { class: "v-hint", text: "Older homes need a few extra checks (wiring, water lines, sump pump). Tell the app how old your home is and it can suggest them." }),
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "btn", text: "Choose home age", onclick: (e) => ctx.openSettings(e.currentTarget) }),
+        h("button", { type: "button", class: "btn subtle", text: "Not now", onclick: () => { S.ideasHidden = true; rerender(); } }))) : null;
+
   return h("section", { class: "v-view tf", "aria-labelledby": "v-today-h" },
     h("h2", { id: "v-today-h", class: "sr-only", text: "Today" }),
-    head, chips, ...(selectToggle ? [h("div", { class: "tf-selectrow" }, selectToggle)] : []), bulkBar, list, flagCard, nudgeCard);
+    head, chips, ...(selectToggle ? [h("div", { class: "tf-selectrow" }, selectToggle)] : []), bulkBar, list, odoCard, flagCard, nudgeCard, ideaCard);
 }
 
 export default { id, label, render };

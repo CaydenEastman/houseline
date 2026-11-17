@@ -42,7 +42,7 @@ test("dueSummary counts overdue and due-today, ignores snoozed and future", () =
   ], vehicles: [] };
   const s = dueSummary(state, today);
   assert.equal(s.overdue, 1); assert.equal(s.due, 1);
-  assert.equal(s.message, "1 overdue and 1 due today");
+  assert.match(s.message, /^1 overdue and 1 due today\. Most urgent: /);
   assert.equal(dueSummary({ tasks: [task({ lastDone: "2026-06-09" })], vehicles: [] }, today).message, null);
 });
 

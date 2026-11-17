@@ -116,3 +116,18 @@ Fixed already: completion id collisions between phones, edits made while signed 
 - [x] search_path: checked, safe as is (see schema.sql note)
 - [ ] Email digest: needs an email-service account and key from the owner
 - [ ] Test on real phones (install, push, share invite link)
+
+## 11. Improvements after v8
+- [x] Seasonal tasks (lawn, pool, leaves) wait for their season (`seasonStart`/`seasonEnd` on interval tasks)
+- [x] Odometer prompt on Today when a reading is 30+ days old
+- [x] Cost per vehicle in Insights (per appliance already existed)
+- [x] Notifications name the most urgent task; "More tasks for your home" card on Today
+- [ ] Not done: view-only household members (needs a DB role, write policies and a read-only app mode), grouping Today by location
+
+## 12. Family page and join notice (v10)
+- [x] `people` list (adult/child/pet, name, phone, allergies, blood type, health notes, doctor/vet, needs, good to know), shared by the whole household, max 20; shown on the printable emergency sheet
+- [x] In-app notice when someone joins (checked on open and every 2 minutes while visible)
+- [ ] Push notification for joins (DB trigger + edge function; deferred)
+- [ ] Old copies of the app (v9 or earlier) drop `people` if they save before updating
+- [ ] Prompt to remove a profile when its person leaves the household or deletes their account
+- [ ] Per-person privacy (needs a separate table with row-level security)

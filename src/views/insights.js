@@ -1,5 +1,5 @@
 // Insights view: who's doing what, spending trends, cost per item, home binder and weekly digest export.
-import { workload, spendTrend, costByItem, binderHTML, binderText, digestText, CAT_LABEL } from "../insights.js";
+import { workload, spendTrend, costByItem, costByVehicle, binderHTML, binderText, digestText, CAT_LABEL } from "../insights.js";
 import { previousMonth, currentMonth, monthlyRecap, recapText } from "../recap.js";
 import { yearlyBudget, rangeText } from "../costs.js";
 import { spend } from "../logic.js";
@@ -61,6 +61,12 @@ function build(ctx, rerender) {
         h("strong", { text: c.item.name }), ` · ${money(c.total)} over ${plural(c.count, "job")}`,
         c.hint ? h("span", { class: "v-warn", text: ` ${c.hint}` }) : null))));
 
+  const cv = costByVehicle(state, today.slice(0, 4));
+  const vehCard = cv.length ? h("section", { class: "v-panel", "aria-labelledby": "v-cv-h" },
+    h("h3", { id: "v-cv-h", class: "v-h3", text: "What each vehicle has cost" }),
+    h("ul", { class: "v-plain" }, cv.map((c) => h("li", {},
+      h("strong", { text: c.vehicle.name }), ` · ${money(c.total)} in all (${money(c.thisYear)} in ${today.slice(0, 4)}) over ${plural(c.count, "job")}`)))) : null;
+
   // ----- estimated yearly upkeep -----
   const bud = yearlyBudget(state, today);
   const thisYear = today.slice(0, 4);
@@ -117,7 +123,7 @@ function build(ctx, rerender) {
       h("textarea", { id: "v-ex-area", rows: "8", readonly: true, "data-fk": "v-ex-area", text: S.showText })) : null);
 
   return h("section", { class: "v-view", "aria-labelledby": "v-ins-h" },
-    h("h2", { id: "v-ins-h", class: "v-h2", text: "Insights" }), recapCard, budCard, wlCard, spendCard, catCard, itemCard, exportCard);
+    h("h2", { id: "v-ins-h", class: "v-h2", text: "Insights" }), recapCard, budCard, wlCard, spendCard, catCard, vehCard, itemCard, exportCard);
 }
 
 export default { id, label, render };

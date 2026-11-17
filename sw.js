@@ -1,5 +1,5 @@
 /* Man of the House service worker: works offline, always prefers fresh files when online. */
-const VERSION = "v8";
+const VERSION = "v10";
 const CACHE = "moth-" + VERSION;
 const SHELL = [
   "./", "index.html", "privacy.html", "styles.css", "styles-views.css", "manifest.webmanifest",
@@ -9,7 +9,7 @@ const SHELL = [
   "src/quickform.js", "src/importcsv.js", "src/costs.js", "src/photos.js", "src/readiness.js",
   "src/recap.js", "src/insights.js", "src/pwa.js", "src/push.js", "src/errors.js", "src/invite.js", "src/version.js", "src/help.js", "src/howto.js", "src/household.js", "src/auth.js", "src/supabase.js", "config.js",
   "src/views/shared.js", "src/views/help.js", "src/views/today.js", "src/views/calendar.js", "src/views/hubs.js",
-  "src/views/inventory.js", "src/views/vehicles.js", "src/views/vendors.js",
+  "src/views/inventory.js", "src/views/vehicles.js", "src/views/vendors.js", "src/views/people.js",
   "src/views/emergency.js", "src/views/history.js", "src/views/insights.js",
 ];
 

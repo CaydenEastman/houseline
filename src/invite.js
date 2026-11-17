@@ -32,3 +32,30 @@ export function pendingJoin(ls, now = Date.now()) {
 }
 
 export function clearJoin(ls) { try { if (ls) ls.removeItem(KEY); } catch { /* optional */ } }
+
+/** What to call a member in a notice: the part of their email before the @. */
+export function memberLabel(m) {
+  const e = m && typeof m.email === "string" ? m.email : "";
+  return (e.split("@")[0] || "Someone").slice(0, 40);
+}
+
+/**
+ * Who joined since this phone last looked? `seen` is the saved list of member ids (null the first time, when nothing is
+ * announced and the current members simply become the baseline). The person's own entry is never announced.
+ */
+export function newMembers(seen, members) {
+  const list = Array.isArray(members) ? members : [];
+  if (!Array.isArray(seen)) return [];
+  const known = new Set(seen);
+  return list.filter((m) => m && m.user_id && !m.me && !known.has(m.user_id));
+}
+
+/** Compare, remember, and return the members to announce. Storage failures just mean no announcement. */
+export function checkMembers(ls, uid, members) {
+  const key = `motH.members.${uid}`;
+  let seen = null;
+  try { const raw = ls.getItem(key); seen = raw ? JSON.parse(raw) : null; } catch { seen = null; }
+  const fresh = newMembers(seen, members);
+  try { ls.setItem(key, JSON.stringify((members || []).map((m) => m.user_id).filter(Boolean))); } catch { /* ignore */ }
+  return fresh;
+}
