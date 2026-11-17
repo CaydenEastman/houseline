@@ -204,6 +204,8 @@ function buildGrid(ctx, rerender) {
     G.selected = iso; G.focus = iso; S.pending = `v-day-${iso}`;
     if (!iso.startsWith(monthKey)) { G.year = +iso.slice(0, 4); G.month = +iso.slice(5, 7); }
     rerender();
+    // Make it obvious something happened: bring the day's list into view.
+    try { const el = document.getElementById("v-day-h"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch { /* ignore */ }
   };
 
   const onKey = (e) => {
@@ -339,8 +341,8 @@ function buildGrid(ctx, rerender) {
     loadError ? h("p", { class: "form-error", role: "alert", text: loadError }) : null,
     filters,
     h("div", { class: "v-cal-scroll" }, table),
-    legend,
     panel,
+    legend,
     h("p", { class: "v-hint", text: "Repeats are projected assuming each task is done on time. Mileage dates are estimates from your odometer. Moving a task to a later day snoozes it until then; drag a task from the day list onto a future day, or use the date box." }));
 }
 

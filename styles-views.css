@@ -418,3 +418,5 @@ dialog *, .add-grid > * { min-width: 0; }
 .back-btn, .tf-edit { min-height: 2.75rem; }
 input[type="checkbox"] { width: 1.4rem; height: 1.4rem; }
 a.privacy-link, .hint a { display: inline-block; padding: .5rem 0; }
+
+.linklike { font: inherit; background: none; border: 0; padding: .6rem .2rem; min-height: 2.75rem; color: var(--brand); text-decoration: underline; cursor: pointer; }

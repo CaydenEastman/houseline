@@ -954,7 +954,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const skipText = r.skipped.slice(0, 6).map((x) => `row ${x.row}: ${x.reason}`).join("; ") + (r.skipped.length > 6 ? `; and ${r.skipped.length - 6} more` : "");
       if (!r.added) { csvOut.replaceChildren(h("p", { class: "form-error", role: "alert", text: `Nothing was imported. ${skipText}` })); return; }
       closeDialog(els.settings);
-      commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length}` : ""}${r.warnings && r.warnings.length ? `. Note: ${r.warnings.join("; ")}` : ""}.`);
+      commit(r.state, `Imported ${plural(r.added, "task")}${r.skipped.length ? `; skipped ${r.skipped.length} (${skipText})` : ""}${r.warnings && r.warnings.length ? `. Note: ${r.warnings.join("; ")}` : ""}.`);
     }
     csvFile.addEventListener("change", async () => {
       const f = csvFile.files && csvFile.files[0]; csvFile.value = "";

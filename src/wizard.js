@@ -112,7 +112,7 @@ export function renderWizard(container, ctx, opts = {}) {
     const oilEl = container.querySelector("#w-voil");
     const oilRaw = oilEl ? oilEl.value.trim() : "";
     W.draft = { name: nameEl.value, odo: odoEl.value, oil: oilEl ? oilEl.value : "" }; // kept so a validation error never empties the boxes
-    if (!name && !odoRaw) { W.draft = null; return !required; }
+    if (!name && !odoRaw) { W.draft = null; if (required) { fail("Type a name (like “Family minivan”) and the odometer first, then add the vehicle.", "#w-vname"); return false; } return true; }
     if (!name) { fail("Give the vehicle a name, like “Family minivan”.", "#w-vname"); return false; }
     const odometer = odoRaw === "" ? 0 : Number(odoRaw);
     if (!Number.isInteger(odometer) || odometer < 0 || odometer > 5000000) {
@@ -217,17 +217,18 @@ export function renderWizard(container, ctx, opts = {}) {
         h("p", { class: "form-error", id: "w-error", role: "alert", text: W.error }),
         h("div", { class: "wizard-actions" },
           W.step > 0 ? h("button", { type: "button", class: "btn", text: "Back", onclick: () => {
-            if (W.step === 0 || (W.step === 1 && !tryAddVehicle(false))) return; go(W.step - 1); } }) : null,
+            if (W.step === 0) return; if (W.step === 1) { tryAddVehicle(false); W.error = ""; } go(W.step - 1); } }) : null,
           W.step < last
             ? h("button", { type: "button", class: "btn primary solid", text: "Next", onclick: () => {
                 if (W.step === 0 && !readStep0()) return;
                 if (W.step === 1 && !tryAddVehicle(false)) return;
                 go(W.step + 1); } })
             : h("button", { type: "button", class: "btn primary solid", text: W.rerun ? "Add missing tasks" : "Finish setup", onclick: () => finish(false) }),
-          W.rerun
-            ? h("button", { type: "button", class: "btn subtle", text: "Cancel", onclick: cancel })
-            : h("button", { type: "button", class: "btn subtle", text: "Skip setup", onclick: () => finish(true) })),
-        W.rerun ? null : h("p", { class: "hint", text: "Skipping loads a standard house and yard list (about 40 tasks, for a cold-climate home). You can re-run setup from Settings any time." })));
+          W.rerun ? h("button", { type: "button", class: "btn subtle", text: "Cancel", onclick: cancel }) : null),
+        W.rerun ? null : h("p", { class: "hint" },
+          "Short on time? ",
+          h("button", { type: "button", class: "linklike", text: "Skip setup", onclick: () => finish(true) }),
+          " to load a standard house and yard list (about 40 tasks, for a cold-climate home). You can re-run setup from Settings any time.")));
     if (moveFocus) { const hd = container.querySelector("#w-heading"); if (hd) hd.focus(); }
     else if (keepId) { const el = container.querySelector("#" + keepId); if (el) el.focus(); }
   }
