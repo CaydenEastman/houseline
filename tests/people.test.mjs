@@ -69,7 +69,7 @@ test("Family screen: reachable from Home, adds a person through the form", async
   assert.ok(tile, "Family tile on Home");
   tile.click(); await sleep(5);
   const main = doc.getElementById("main");
-  assert.match(main.textContent, /Everyone who shares this household can see and edit/);
+  assert.match(main.textContent, /helps in an emergency/);
   main.querySelector("#v-ppl-add").click(); await sleep(5);
   const f = doc.getElementById("main");
   const set = (sel, v) => { const el = f.querySelector(sel); el.value = v; el.dispatchEvent({ type: "input", bubbles: true, target: el, preventDefault() {} }); };

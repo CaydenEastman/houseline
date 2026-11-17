@@ -19,7 +19,7 @@ test("Today: 'Later' snoozes a task for a week", () => {
   resetTodayView();
   const state = mkState({ tasks: [mkTask({ id: "t1", title: "Mow", lastDone: "2025-01-01", intervalDays: 30 })] });
   const { container, commits } = mount(state);
-  btn(container, "Later").click();
+  btn(container, "Later (1 wk)").click();
   assert.equal(commits.length, 1);
   assert.equal(commits[0][0].tasks[0].snoozedUntil, "2026-11-23");
   assert.match(commits[0][1], /Snoozed until/);

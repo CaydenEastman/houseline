@@ -3,7 +3,7 @@
 import * as ICS from "../ics.js";
 import * as CAL from "../calendar.js";
 import { addDays, snoozeTask, dueInfo } from "../logic.js";
-import { isoToLocalDate, plural } from "../dom.js";
+import { isoToLocalDate, plural, fmtDate } from "../dom.js";
 
 export const id = "calendar";
 export const label = "Calendar";
@@ -260,7 +260,7 @@ function buildGrid(ctx, rerender) {
           ev.preventDefault();
           let tid = ""; try { tid = ev.dataTransfer.getData("text/plain"); } catch { /* none */ }
           if (!tid || typeof ctx.commit !== "function") return;
-          try { ctx.commit(snoozeTask(ctx.getState(), tid, iso, today), `Moved to ${iso}`); }
+          try { ctx.commit(snoozeTask(ctx.getState(), tid, iso, today), `Moved to ${fmtDate(iso)}`); }
           catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that.", { error: true }); }
         } : null,
       },
@@ -294,7 +294,7 @@ function buildGrid(ctx, rerender) {
     const tags = [e.carried ? "carried forward" : null, e.estimated ? "estimated date" : null, e.projected ? "projected repeat" : null].filter(Boolean);
     const movable = !!task && !e.projected && e.type === "task" && typeof ctx.commit === "function";
     const move = (iso) => {
-      try { ctx.commit(snoozeTask(ctx.getState(), task.id, iso, today), `Moved to ${iso}: ${task.title}`); }
+      try { ctx.commit(snoozeTask(ctx.getState(), task.id, iso, today), `Moved to ${fmtDate(iso)}: ${task.title}`); }
       catch (err) { if (typeof ctx.toast === "function") ctx.toast(err && err.message ? err.message : "Couldn't move that.", { error: true }); }
     };
     let minMove = addDays(today, 1);

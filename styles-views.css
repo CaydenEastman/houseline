@@ -243,7 +243,11 @@ textarea.v-pre { border: 1.5px solid var(--muted); resize: vertical; }
 }
 .nav-label { white-space: nowrap; }
 
-.backbar { display: flex; align-items: center; gap: .8rem; margin: 0 0 .8rem; }
+.backbar { display: flex; align-items: center; gap: .8rem; margin: 0 0 .8rem; position: sticky; top: 0; z-index: 5; background: var(--bg); padding: .4rem 0; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.dlg-x { font: inherit; font-size: 1.6rem; line-height: 1; min-width: 2.75rem; min-height: 2.75rem; border: 0; background: transparent; color: var(--text); cursor: pointer; border-radius: 999px; }
+.dlg-x:hover { background: var(--surface-2); }
+.dlg-x:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .backbar[hidden] { display: none; }
 .back-btn { font: inherit; font-weight: 700; min-height: 2.75rem; padding: .3rem .9rem .3rem .6rem; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--brand); cursor: pointer; }
 .back-btn:hover { background: var(--surface-2); }
@@ -401,3 +405,16 @@ dialog *, .add-grid > * { min-width: 0; }
 .v-panel .row { display: flex; gap: .5rem; align-items: center; }
 .v-panel .row input { flex: 1 1 auto; min-width: 0; }
 .v-pre { overscroll-behavior: contain; }
+
+/* Family form: the optional emergency details */
+.p-more { border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .8rem; margin: .5rem 0; }
+.p-more > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.p-more[open] > summary { margin-bottom: .4rem; }
+
+/* Day one: no red grade before anything has been finished. */
+.tf-start .tf-ring { border-color: var(--line); background: var(--surface-2); color: var(--text); }
+/* Comfortable tap targets. */
+.chip { min-height: 2.75rem; }
+.back-btn, .tf-edit { min-height: 2.75rem; }
+input[type="checkbox"] { width: 1.4rem; height: 1.4rem; }
+a.privacy-link, .hint a { display: inline-block; padding: .5rem 0; }

@@ -37,7 +37,7 @@ export function fmtDate(iso, opts = { month: "short", day: "numeric", year: "num
 }
 
 /** "3 tasks", "1 task". The one pluralizer for the whole app. */
-export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+export const plural = (n, word) => `${n} ${n === 1 ? word : /[^aeiou]y$/.test(word) ? word.slice(0, -1) + "ies" : word + "s"}`;
 /** 12,345: one number format everywhere (never "12.345" on one screen and "12,345" on another). */
 export const fmtNum = (n) => Number(n).toLocaleString("en-US");
 /** $1,234.50 */

@@ -20,6 +20,7 @@ export function makePaint(S) {
 export { plural, money };
 export function dueWords(r) {
   if (r.task.kind === "mileage" && r.info.milesLeft != null && r.info.basis === "miles") {
+    if (r.days < 0 && r.info.milesLeft > 0) return "Odometer reading is old: update mileage";
     return milesText(r.info.milesLeft);
   }
   const d = r.days;

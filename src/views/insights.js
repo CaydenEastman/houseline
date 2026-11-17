@@ -80,7 +80,7 @@ function build(ctx, rerender) {
       h("ul", { class: "v-plain" }, Object.entries(bud.byCategory).filter(([, v]) => v.high > 0).map(([k, v]) => h("li", { text: `${CAT_LABEL[k] || k}: ${rng(v.low, v.high)}` }))),
       h("h4", { class: "v-h5", text: "Biggest yearly costs" }),
       h("ul", { class: "v-plain" }, bud.items.slice(0, 5).map((x) => h("li", {},
-        h("strong", { text: x.task.title.split(" — ")[0] }),
+        h("strong", { text: x.task.title.split(" — ")[0] }), x.task.title.includes(" — ") ? ` (${x.task.title.split(" — ").slice(1).join(" — ")})` : "",
         ` · ${rng(x.low, x.high)} a year (${rangeText(x.per)} each, ${x.per.source === "yours" ? "from your own costs" : "typical price"})`)))),
     h("p", { class: "v-hint", text: `Ballpark only. Typical US prices: the low end is doing it yourself, the high end is hiring it out. Once you record real costs for a task, your own numbers replace the guess.${bud.uncounted ? ` ${plural(bud.uncounted, "task")} ${bud.uncounted === 1 ? "has" : "have"} no estimate and ${bud.uncounted === 1 ? "isn't" : "aren't"} counted.` : ""}` }));
 

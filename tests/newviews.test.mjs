@@ -52,7 +52,7 @@ test("Insights: blocked downloads fall back to text area", async () => {
 test("Vendors: empty state, add form saves through commit", () => {
   const { container, calls } = setup(vendors, mkState({ items: [mkItem({ id: "i1", name: "Furnace" })] }));
   assert.ok(container.textContent.includes("No contacts yet"));
-  btn(container, (b) => b.textContent === "+ Add vendor").click();
+  btn(container, (b) => b.textContent === "+ Add contact").click();
   const name = container.querySelector("#v-vf-name");
   name.value = "Ace Plumbing"; name.dispatchEvent({ type: "input", bubbles: true, target: name, preventDefault() {} });
   const form = container.querySelector("form");
@@ -62,7 +62,7 @@ test("Vendors: empty state, add form saves through commit", () => {
 });
 test("Vendors: bad email shows an error, no commit", () => {
   const { container, calls } = setup(vendors, mkState());
-  btn(container, (b) => b.textContent === "+ Add vendor").click();
+  btn(container, (b) => b.textContent === "+ Add contact").click();
   const set = (sel, v) => { const el = container.querySelector(sel); el.value = v; el.dispatchEvent({ type: "input", bubbles: true, target: el, preventDefault() {} }); };
   set("#v-vf-name", "X"); set("#v-vf-email", "nope");
   const form = container.querySelector("form");

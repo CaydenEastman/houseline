@@ -207,8 +207,22 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     },
   };
 
+  // A plain browser download: what the installed app and a normal web page use when the host has no download service.
+  function browserDownload(filename, text, mime) {
+    try {
+      const w = doc.defaultView;
+      if (!w || !w.URL || typeof w.URL.createObjectURL !== "function" || typeof Blob === "undefined") return false;
+      const url = w.URL.createObjectURL(new Blob([text], { type: mime || "text/plain" }));
+      const a = doc.createElement("a");
+      a.href = url; a.download = filename; a.rel = "noopener";
+      doc.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => { try { w.URL.revokeObjectURL(url); } catch { /* ignore */ } }, 10000);
+      return true;
+    } catch { return false; }
+  }
   async function saveFile(filename, text, mime) {
-    try { return !!(await store.saveFile(filename, text, mime)); } catch { return false; }
+    try { if (await store.saveFile(filename, text, mime)) return true; } catch { /* try the browser */ }
+    return browserDownload(filename, text, mime);
   }
 
   const ctx = {
@@ -385,10 +399,15 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     ], { trigger, focus: "#v-quick-input" });
   }
 
-  function setView(id, focusPanel) {
+  // The phone's Back button should step back through screens, not leave the app.
+  const hist = typeof window !== "undefined" && window.history && typeof window.history.pushState === "function" ? window.history : null;
+  function setView(id, focusPanel, fromPop) {
     if (!TABS.some((t) => t.id === id)) return;
+    const changed = id !== active;
     active = id;
+    if (hist && !fromPop && changed) { try { hist.pushState({ v: id }, ""); } catch { /* ignore */ } }
     render();
+    if (changed && typeof window !== "undefined" && typeof window.scrollTo === "function") { try { window.scrollTo(0, 0); } catch { /* ignore */ } }
     if (focusPanel && panels[id]) { panels[id].root.setAttribute("tabindex", "-1"); panels[id].root.focus(); }
   }
 
@@ -639,6 +658,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       if (odo) {
         const o = Number(odo.value);
         if (odo.value.trim() === "" || !Number.isInteger(o) || o < 0) { err.textContent = "Odometer must be a whole number of miles."; odo.focus(); return; }
+        if (vehicle && o < vehicle.odometer) { err.textContent = `The odometer can't be lower than the car's current reading (${fmtN(vehicle.odometer)} mi). Update the car first if that reading is wrong.`; odo.focus(); return; }
         opts.odometer = o;
       }
       if (notes.value.trim()) opts.notes = notes.value.trim();
@@ -659,7 +679,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       h("div", { class: "field" }, h("label", { for: "c-notes", text: "Notes" }), notes),
       h("div", { class: "field" }, h("span", { class: "label-like", text: "Photos" }), strip, addBtn, fileIn, note),
       err,
-      h("p", { class: "hint", text: "Press Enter to finish quickly — cost, notes and photos are all optional." }),
+      h("p", { class: "hint", text: "Cost, notes and photos are all optional." }),
       h("div", { class: "dialog-actions" },
         h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => closeDialog(els.complete) }),
         h("button", { type: "submit", class: "btn primary solid", text: "Mark done" })));
@@ -679,11 +699,11 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const f = {};
     const field = (label, input, hint, id) => h("div", { class: "field" }, h("label", { for: id, text: label }), input, hint ? h("p", { class: "hint", text: hint }) : null);
     f.title = h("input", { id: "f-title", type: "text", required: true, maxlength: "120", autocomplete: "off", value: seed.title || "" });
-    f.category = h("select", { id: "f-category" }, CATEGORIES.map((c) => h("option", { value: c, text: CAT_LABEL[c] || c, selected: (seed.category || (CATEGORIES.includes(tv.cat) ? tv.cat : "house")) === c })));
+    f.category = h("select", { id: "f-category", onchange: () => { f.categoryTouched = true; } }, CATEGORIES.map((c) => h("option", { value: c, text: CAT_LABEL[c] || c, selected: (seed.category || (CATEGORIES.includes(tv.cat) ? tv.cat : "house")) === c })));
     f.kind = h("select", { id: "f-kind", onchange: () => syncKind() },
       [["interval", "Every N days"], ["annual", "Yearly on a date"], ["mileage", "Every N miles (a vehicle)"]].map(([v, l]) => h("option", { value: v, text: l, selected: kind0 === v })));
     f.intervalLabel = h("label", { for: "f-interval", text: "Repeat every (days)" });
-    f.interval = h("input", { id: "f-interval", type: "number", inputmode: "numeric", min: "1", max: "36500", step: "1", value: seed.intervalDays ? String(seed.intervalDays) : (editing ? "" : "30") });
+    f.interval = h("input", { id: "f-interval", oninput: () => { f.intervalTouched = true; }, type: "number", inputmode: "numeric", min: "1", max: "36500", step: "1", value: seed.intervalDays ? String(seed.intervalDays) : (editing ? "" : "30") });
     f.intervalHint = h("p", { class: "hint" });
     f.month = h("select", { id: "f-month" }, MONTHS.map((m, i) => h("option", { value: String(i + 1), text: m, selected: (seed.month || 1) === i + 1 })));
     f.day = h("input", { id: "f-day", type: "number", inputmode: "numeric", min: "1", max: "28", step: "1", value: String(seed.day || 1) });
@@ -719,7 +739,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const addLink = h("button", { type: "button", class: "btn", text: "+ Add a link", onclick: () => { linkRows.push({ label: "", url: "" }); drawLinks(); const el = linkBox.querySelector(`#lk-l-${linkRows.length - 1}`); if (el) el.focus(); } });
 
     const secInterval = h("div", {}, h("div", { class: "field" }, f.intervalLabel, f.interval, f.intervalHint));
-    const secAnnual = h("div", { class: "row2" }, field("Month", f.month, null, "f-month"), field("Day (1–28)", f.day, null, "f-day"));
+    const secAnnual = h("div", { class: "row2" }, field("Month", f.month, null, "f-month"), field("Day of the month (1–28)", f.day, "Limited to 28 so it works in every month.", "f-day"));
     const secMiles = h("div", {}, h("div", { class: "row2" }, field("Vehicle", f.vehicle, null, "f-vehicle"), field("Every (miles)", f.miles, null, "f-miles")),
       field("Odometer at last service (optional)", f.odo, "Leave blank if unknown.", "f-odo"));
     const secStart = h("div", { class: "field" }, h("label", { for: "f-start", text: "First due date (if not done yet)" }), f.start,
@@ -731,6 +751,9 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       secAnnual.hidden = k !== "annual";
       secMiles.hidden = k !== "mileage";
       secStart.hidden = k === "annual";
+      // The days box starts at 30 for ordinary tasks. A new mileage task should go by miles only unless they type a limit.
+      if (!editing && !f.intervalTouched && (f.interval.value === "" || f.interval.value === "30")) f.interval.value = k === "mileage" ? "" : "30";
+      if (!editing && k === "mileage" && !f.categoryTouched) f.category.value = "car";
       f.intervalLabel.textContent = k === "mileage" ? "Also due at least every (days) — optional" : "Repeat every (days)";
       f.intervalHint.textContent = k === "mileage" ? "A time limit, e.g. 180 days for oil changes. Leave blank to go by miles only." : "";
     }
@@ -740,6 +763,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const fail = (msg, el) => { f.err.textContent = msg; if (el) el.focus(); };
       const title = f.title.value.trim();
       if (!title) return fail("Please enter a title.", f.title);
+      if (f.lastDone.value && f.lastDone.value > today) return fail("The last-done date can't be in the future. Leave it blank if you haven't done it yet.", f.lastDone);
       const kind = f.kind.value;
       const out = {
         title, category: f.category.value, kind, notes: f.notes.value.trim(),
@@ -750,7 +774,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       };
       if (kind === "interval") {
         const n = Number(f.interval.value);
-        if (!Number.isInteger(n) || n < 1 || n > 36500) return fail("Repeat interval must be a whole number of days, 1 or more.", f.interval);
+        if (!Number.isInteger(n) || n < 1 || n > 36500) return fail("Repeat interval must be a whole number of days, from 1 to 36,500.", f.interval);
         out.intervalDays = n;
       } else if (kind === "annual") {
         const d = Number(f.day.value);
@@ -759,7 +783,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       } else {
         const m = Number(f.miles.value);
         if (!Number.isInteger(m) || m < 1) return fail("Miles must be a whole number, 1 or more.", f.miles);
-        if (!f.vehicle.value) return fail("Choose a vehicle. Add one on the Vehicles tab if you have none.", f.vehicle);
+        if (!f.vehicle.value) return fail("Choose a vehicle. If you have none yet, add one under Home, then Vehicles.", f.vehicle);
         out.intervalMiles = m; out.vehicleId = f.vehicle.value;
         if (f.odo.value.trim() !== "") {
           const o = Number(f.odo.value);
@@ -960,7 +984,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       : "Your data is saved on this device only." + (persistent ? "" : " Storage looks blocked, so changes may be lost when you close the page.");
 
     openDialog(els.settings, [
-      h("h2", { id: "settings-dialog-title", text: "Settings" }),
+      h("div", { class: "dlg-head" }, h("h2", { id: "settings-dialog-title", tabindex: "-1", text: "Settings" }), h("button", { type: "button", class: "dlg-x", "aria-label": "Close settings", text: "\u00d7", onclick: () => closeDialog(els.settings) })),
       h("section", { class: "set-sec" },
         h("h3", { text: "Help" }),
         h("button", { type: "button", class: "btn", id: "s-tour", text: "Show the quick tour", onclick: () => { closeDialog(els.settings); openTour(null); } })),
@@ -1022,12 +1046,12 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         h("div", { class: "field" }, h("label", { for: "s-paste", text: "Or paste backup text" }), paste, importErr,
           h("button", { type: "button", class: "btn", text: "Import pasted text", onclick: () => { if (!paste.value.trim()) { toast("Paste some backup text first.", { error: true }); paste.focus(); return; } doImport(paste.value, "pasted text"); } }))),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
-    ], { trigger, focus: "#s-rerun" });
+    ], { trigger, focus: "#settings-dialog-title" });
   }
 
   function openAccount(trigger) {
     openDialog(els.settings, [
-      h("h2", { id: "settings-dialog-title", text: "Account" }),
+      h("div", { class: "dlg-head" }, h("h2", { id: "settings-dialog-title", tabindex: "-1", text: "Account" }), h("button", { type: "button", class: "dlg-x", "aria-label": "Close account", text: "\u00d7", onclick: () => closeDialog(els.settings) })),
       accountPanel(),
       h("p", { class: "hint" }, h("a", { href: "privacy.html", target: "_blank", rel: "noopener", text: "What this app stores and where (privacy)" })),
       h("div", { class: "dialog-actions" }, h("button", { type: "button", class: "btn primary solid", text: "Close", onclick: () => closeDialog(els.settings) })),
@@ -1098,7 +1122,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
             : "Get a notification each morning when something is overdue or due, even if the app is closed." }),
           h("div", { class: "field" }, h("label", { for: "s-remind-hour", text: "Time" }), sel), quietBox, btn].filter(Boolean);
         if (!pwa.isStandalone()) kids.push(h("p", { class: "hint", text: "On iPhone, reminders only work after you add the app to your Home Screen (Share, then Add to Home Screen) and open it from there." }));
-        wrap.replaceChildren(...kids);
+        setKids(wrap, ...kids);
         return;
       }
       const msg = !pwa.supported()
@@ -1115,7 +1139,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       });
       const kids = [h("p", { class: "hint", text: msg }), btn];
       if (!pwa.isStandalone()) kids.push(h("p", { class: "hint", text: "Tip: in your browser menu choose \"Add to Home Screen\" (or \"Install app\") so it opens like a normal app." }));
-      wrap.replaceChildren(...kids);
+      setKids(wrap, ...kids);
     };
     paint();
     return wrap;
@@ -1139,7 +1163,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
           await auth.signOut();
           doc.defaultView.location.reload();
         });
-        wrap.replaceChildren(
+        setKids(wrap, 
           h("p", { class: "hint", text: `Signed in${s.user && s.user.email ? " as " + s.user.email : ""}. Your data syncs to your account, so it survives a lost phone and appears on your other phones.` }), out,
           ...(doc.defaultView.motHousehold ? [householdPanel(), backupsPanel(), yourDataPanel()] : []));
         return;
@@ -1160,7 +1184,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       const google = h("button", { type: "button", class: "btn", id: "s-google", text: "Continue with Google" });
       google.addEventListener("click", () => { doc.defaultView.location.assign(auth.googleUrl(here())); });
       const invited = pendingJoin(doc.defaultView.localStorage);
-      wrap.replaceChildren(
+      setKids(wrap, 
         invited ? h("p", { class: "invited-note", id: "s-invited", text: "You were invited to share a household. Sign in first, then you'll be asked to join. Use the same phone and browser you're on now." }) : null,
         h("p", { class: "hint", text: "Sign in to keep your data safe in the cloud and use it on more than one phone. Your tasks on this phone are kept and merged in." }),
         h("div", { class: "field" }, h("label", { for: "s-email", text: "Email" }), email),
@@ -1171,6 +1195,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   // ---------- Household sharing, data download, account deletion ----------
+  const setKids = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null && k !== false));
   const hhApi = () => (doc.defaultView && doc.defaultView.motHousehold) || null;
   const reloadApp = () => doc.defaultView.location.reload();
 
@@ -1242,7 +1267,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     const doneAndReload = (msg) => { toast(msg); setTimeout(reloadApp, 600); };
     async function paint() {
       let info;
-      try { info = await api.info(); } catch (e) { wrap.replaceChildren(h("h4", { text: "Household" }), h("p", { class: "hint", text: "Couldn't load your household right now. Check your connection." })); return; }
+      try { info = await api.info(); } catch (e) { setKids(wrap, h("h4", { text: "Household" }), h("p", { class: "hint", text: "Couldn't load your household right now. Check your connection." })); return; }
       const owner = info.role === "owner";
       const alone = info.members.length === 1;
       const kids = [h("h4", { text: "Household" })];
@@ -1301,7 +1326,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
       } else {
         kids.push(h("p", { class: "hint", text: "To leave, first remove the others or make someone else the owner." }));
       }
-      wrap.replaceChildren(...kids);
+      setKids(wrap, ...kids);
     }
     paint();
     return wrap;
@@ -1314,7 +1339,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     async function paint() {
       let days, info;
       try { [days, info] = await Promise.all([api.snapshots(), api.info()]); }
-      catch { wrap.replaceChildren(h("h4", { text: "Daily backups" }), h("p", { class: "hint", text: "Couldn't load your backups right now." })); return; }
+      catch { setKids(wrap, h("h4", { text: "Daily backups" }), h("p", { class: "hint", text: "Couldn't load your backups right now." })); return; }
       const owner = info.role === "owner";
       const kids = [h("h4", { text: "Daily backups" }),
         h("p", { class: "hint", text: "Every morning the app saves a copy of your household's tasks and history, and keeps the last 14 days. Photos are not included." + (owner ? "" : " Only the owner can restore one.") })];
@@ -1332,7 +1357,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
         }
         kids.push(list);
       }
-      wrap.replaceChildren(...kids);
+      setKids(wrap, ...kids);
     }
     paint();
     return wrap;
@@ -1466,6 +1491,13 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     });
   } catch { /* optional */ }
 
+  if (hist) {
+    try { hist.replaceState({ v: active }, ""); } catch { /* ignore */ }
+    window.addEventListener("popstate", (e) => {
+      const v = e.state && e.state.v;
+      if (v && v !== active) setView(v, false, true);
+    });
+  }
   render();
   if (!tourSeen() && state.profile && state.profile.setupDone && !loadError) openTour(null);
   else if (!loadError) setTimeout(() => {

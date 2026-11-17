@@ -88,7 +88,7 @@ function addForm(ctx, rerender) {
   const submit = (e) => {
     e.preventDefault();
     const name = d.name.trim();
-    const odoStr = String(d.odometer).trim();
+    const odoStr = String(d.odometer).replace(/[,\s]/g, "");
     if (!name) { d.error = "Please name the vehicle, like \"2015 Equinox\"."; S.pending = "v-veh-name"; return rerender(); }
     if (!/^\d+$/.test(odoStr)) { d.error = "Enter the odometer as whole miles, like 84500."; S.pending = "v-veh-odo"; return rerender(); }
     try {
@@ -241,7 +241,7 @@ function odoForm(ctx, v, rerender) {
   const d = S.odo;
   const submit = (e) => {
     e.preventDefault();
-    const s = String(d.value).trim();
+    const s = String(d.value).replace(/[,\s]/g, "");
     if (!/^\d+$/.test(s)) { d.error = "Enter whole miles, like 85120."; S.pending = `odo-in-${v.id}`; return rerender(); }
     const miles = Number(s);
     if (miles < v.odometer) { d.error = `That's lower than the current reading (${mi(v.odometer)}). Odometers only go up. Check for a typo.`; S.pending = `odo-in-${v.id}`; return rerender(); }

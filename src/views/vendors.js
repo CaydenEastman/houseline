@@ -37,8 +37,8 @@ function build(ctx, rerender) {
     h("label", { for: `v-vf-${key}`, text: lbl }),
     h("input", { id: `v-vf-${key}`, "data-fk": `v-vf-${key}`, value: S.form[key], maxlength: "120", ...attrs, oninput: (e) => { S.form[key] = e.target.value; } }));
 
-  const form = S.form ? h("form", { class: "v-form", "aria-label": S.form.id ? "Edit vendor" : "Add vendor", onsubmit: (e) => { e.preventDefault(); save(); } },
-    h("h3", { class: "v-h3", text: S.form.id ? "Edit vendor" : "Add vendor" }),
+  const form = S.form ? h("form", { class: "v-form", "aria-label": S.form.id ? "Edit contact" : "Add contact", onsubmit: (e) => { e.preventDefault(); save(); } },
+    h("h3", { class: "v-h3", text: S.form.id ? "Edit contact" : "Add contact" }),
     field("Name", "name", { required: true, autocomplete: "off" }),
     h("div", { class: "field" }, h("label", { for: "v-vf-trade", text: "Trade" }),
       h("input", { id: "v-vf-trade", "data-fk": "v-vf-trade", list: "v-trades", value: S.form.trade, maxlength: "100", oninput: (e) => { S.form.trade = e.target.value; } }),
@@ -53,7 +53,7 @@ function build(ctx, rerender) {
       h("textarea", { id: "v-vf-notes", rows: "2", maxlength: "2000", oninput: (e) => { S.form.notes = e.target.value; }, text: S.form.notes })),
     S.form.error ? h("p", { class: "form-error", role: "alert", text: S.form.error }) : null,
     h("div", { class: "v-actions" },
-      h("button", { type: "submit", class: "btn primary solid", text: "Save vendor" }),
+      h("button", { type: "submit", class: "btn primary solid", text: "Save contact" }),
       h("button", { type: "button", class: "btn", text: "Cancel", onclick: () => { S.form = null; S.pending = "v-vend-add"; rerender(); } }))) : null;
 
   const q = S.q.trim().toLowerCase();
@@ -77,7 +77,7 @@ function build(ctx, rerender) {
 
   return h("section", { class: "v-view", "aria-labelledby": "v-vend-h" },
     h("div", { class: "v-head" }, h("h2", { id: "v-vend-h", class: "v-h2", text: "Contacts" }),
-      h("button", { type: "button", class: "btn primary", id: "v-vend-add", "data-fk": "v-vend-add", text: "+ Add vendor", onclick: () => { S.form = blank(null); S.pending = "v-vf-name"; rerender(); } })),
+      h("button", { type: "button", class: "btn primary", id: "v-vend-add", "data-fk": "v-vend-add", text: "+ Add contact", onclick: () => { S.form = blank(null); S.pending = "v-vf-name"; rerender(); } })),
     h("p", { class: "v-lede", text: "Keep the people you call in one place, linked to the appliances and systems they service." }),
     form,
     vendors.length > 4 ? h("div", { class: "field" }, h("label", { for: "v-vend-q", text: "Search contacts" }),

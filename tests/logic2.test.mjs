@@ -344,9 +344,10 @@ test('setOdometer: log capped at 60, ascending, oldest dropped', () => {
   assert.equal(log.at(-1).odometer, 750);
   assert.equal(log[0].odometer, 160);
 });
-test('setOdometer huge value ok (1e9)', () => {
-  const n = L.setOdometer(mkState({ vehicles: [veh()] }), 'v1', 1e9, T);
-  assert.equal(n.vehicles[0].odometer, 1e9);
+test('setOdometer accepts up to 2,000,000 and refuses absurd values', () => {
+  const n = L.setOdometer(mkState({ vehicles: [veh()] }), 'v1', 1_500_000, T);
+  assert.equal(n.vehicles[0].odometer, 1_500_000);
+  assert.throws(() => L.setOdometer(mkState({ vehicles: [veh()] }), 'v1', 1e9, T));
 });
 
 // ---------- items / supplies ----------

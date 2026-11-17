@@ -52,7 +52,7 @@ function build(ctx, rerender) {
   const bandText = { great: "In great shape", ok: "Mostly on track", "needs-work": starting ? "Getting started" : "Needs attention" }[sc.band];
   const head = h("div", { class: "tf-head" },
     h("h3", { class: "tf-title", text: headline }),
-    h("details", { class: `tf-score v-score-${sc.band}`, open: S.scoreOpen ? true : null, ontoggle: (e) => { S.scoreOpen = !!(e.target && e.target.open); } },
+    h("details", { class: `tf-score v-score-${sc.band}${starting ? " tf-start" : ""}`, open: S.scoreOpen ? true : null, ontoggle: (e) => { S.scoreOpen = !!(e.target && e.target.open); } },
       h("summary", { "data-fk": "tf-score", "aria-label": `Home score ${sc.score} out of 100, ${bandText}. Show details` },
         h("span", { class: "tf-ring", "aria-hidden": "true", text: String(sc.score) }),
         h("span", { class: "tf-score-text" }, h("strong", { text: bandText }), h("small", { text: "Home score" }))),
@@ -98,7 +98,7 @@ function build(ctx, rerender) {
       h("span", { class: "tf-minor" },
         h("button", { type: "button", class: "tf-edit", text: "Edit", "aria-label": `Edit: ${r.task.title}`, onclick: () => ctx.openTaskForm(r.task) }),
         typeof ctx.commit === "function"
-          ? h("button", { type: "button", class: "tf-edit", text: "Later", "aria-label": `Snooze for a week: ${r.task.title}`, onclick: () => {
+          ? h("button", { type: "button", class: "tf-edit", text: "Later (1 wk)", "aria-label": `Snooze for a week: ${r.task.title}`, onclick: () => {
             try { const until = addDays(today, 7); ctx.commit(snoozeTask(ctx.getState(), r.task.id, until, today), `Snoozed until ${fmtDate(until)}.`); }
             catch (e) { if (typeof ctx.toast === "function") ctx.toast(e.message || "Couldn't snooze that.", { error: true }); }
           } }) : null)),

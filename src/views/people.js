@@ -23,6 +23,8 @@ function build(ctx, rerender) {
   const { h } = ctx;
   const state = ctx.getState();
   const people = state.people || [];
+  const acct = ctx.account ? ctx.account() : null;
+  const signedIn = !!(acct && acct.signedIn);
 
   const save = () => {
     const f = S.form;
@@ -50,7 +52,7 @@ function build(ctx, rerender) {
     h("div", { class: "field" }, h("label", { for: "v-pf-kind", text: "Who is this?" }),
       h("select", { id: "v-pf-kind", "data-fk": "v-pf-kind", onchange: (e) => { S.form.kind = e.target.value; S.pending = "v-pf-kind"; rerender(); } },
         PERSON_KINDS.map((k) => h("option", { value: k, text: PERSON_KIND_LABEL[k], selected: S.form.kind === k })))),
-    h("details", { class: "v-more", open: S.form.id && hasDetails(S.form) ? true : null },
+    h("details", { class: "p-more", open: S.form.open || (S.form.id && hasDetails(S.form)) ? true : null, ontoggle: (e) => { if (e.target) S.form.open = !!e.target.open; } },
       h("summary", { text: "Emergency details (optional)" }),
       h("p", { class: "hint", text: "Everyone who shares this household can see and edit this. Don't enter Social Security, insurance or policy numbers." }),
       pet ? null : text("Phone", "phone", { type: "tel", inputmode: "tel", maxlength: "60" }),
@@ -88,7 +90,7 @@ function build(ctx, rerender) {
   return h("section", { class: "v-view", "aria-labelledby": "v-ppl-h" },
     h("div", { class: "v-head" }, h("h2", { id: "v-ppl-h", class: "v-h2", text: "Family" }), addBtn),
     h("p", { class: "v-lede", text: "Who lives here, and what a helper would need to know about each person or pet. These details go on your printable emergency sheet." }),
-    h("p", { class: "invited-note", role: "note", text: "Everyone who shares this household can see and edit this page. It's saved on the app's server and is included in backups. Keep it to what helps in an emergency." }),
+    h("p", { class: "hint", role: "note", text: signedIn ? "Everyone who shares your household can see and edit this page, and it is included in your backups. Keep it to what helps in an emergency." : "Only what helps in an emergency. If you sign in and share your household later, everyone in it will see this page." }),
     form,
     people.length === 0 && !S.form
       ? h("div", { class: "v-panel" }, h("h3", { class: "v-h3", text: "No one added yet" }),

@@ -5,7 +5,7 @@ import { addTask } from "./logic.js";
 export function quickForm(ctx, { onAdded } = {}) {
   const { h } = ctx;
   let dupFor = null;
-  const hint = () => h("p", { class: "v-hint", text: "Try “mow the lawn weekly”, “renew registration every January 15” or “rotate tires twice a year”." });
+  const hint = () => h("p", { class: "v-hint", text: "Try “mow the lawn weekly”, “renew registration every January 15” or “rotate tires twice a year”. For a one-time task, use “Task with details”." });
   const note = h("div", { class: "v-quick-note" }, hint());
   const say = (text, isError) => note.replaceChildren(isError ? h("p", { class: "form-error", role: "alert", text }) : hint());
 
