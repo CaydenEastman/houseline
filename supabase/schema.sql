@@ -659,3 +659,46 @@ begin
 end $$;
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- ===== Private family-profile notes (allergies, health): readable only by the account that wrote them =====
+create table if not exists public.person_private (
+  household_id uuid not null references public.households(id) on delete cascade,
+  person_id text not null check (length(person_id) between 1 and 100),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  data jsonb not null check (pg_column_size(data) < 20000),
+  updated_at timestamptz not null default now(),
+  primary key (household_id, person_id, user_id)
+);
+alter table public.person_private enable row level security;
+revoke all on public.person_private from anon, authenticated;
+create or replace function public.get_private_people()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  return coalesce((select jsonb_object_agg(p.person_id, p.data) from public.person_private p where p.household_id = hh and p.user_id = auth.uid()), '{}'::jsonb);
+end $$;
+create or replace function public.set_private_person(pid text, d jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  if pid is null or length(pid) = 0 or length(pid) > 100 then raise exception 'bad person id'; end if;
+  if (select count(*) from public.person_private p where p.household_id = hh and p.user_id = auth.uid()) >= 40
+     and not exists (select 1 from public.person_private p where p.household_id = hh and p.user_id = auth.uid() and p.person_id = pid) then
+    raise exception 'too many private profiles';
+  end if;
+  insert into public.person_private (household_id, person_id, user_id, data) values (hh, pid, auth.uid(), coalesce(d, '{}'::jsonb))
+  on conflict (household_id, person_id, user_id) do update set data = excluded.data, updated_at = now();
+end $$;
+create or replace function public.delete_private_person(pid text)
+returns void language plpgsql security definer set search_path = public as $$
+declare hh uuid;
+begin
+  hh := public.ensure_household();
+  delete from public.person_private where household_id = hh and user_id = auth.uid() and person_id = pid;
+end $$;
+revoke all on function public.get_private_people(), public.set_private_person(text, jsonb), public.delete_private_person(text) from public, anon;
+grant execute on function public.get_private_people(), public.set_private_person(text, jsonb), public.delete_private_person(text) to authenticated;
+-- Join notices are sent by the send-reminders function (?joins=1) from a pg_cron job every 5 minutes:
+--   select cron.schedule('send-join-notices', '*/5 * * * *', <same net.http_post as send-reminders-hourly, url ...?joins=1>);

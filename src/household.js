@@ -66,6 +66,9 @@ export function createHousehold({ url, anonKey, auth, fetchImpl }) {
     leave: () => rpc("leave_household"),
     remove: (userId) => rpc("remove_member", { target: userId }),
     makeOwner: (userId) => rpc("make_owner", { target: userId }),
+    privateGet: () => rpc("get_private_people"),
+    privateSet: (pid, d) => rpc("set_private_person", { pid, d }),
+    privateDelete: (pid) => rpc("delete_private_person", { pid }),
     snapshots: () => rpc("list_snapshots"),
     restoreSnapshot: (day) => rpc("restore_snapshot", { day }),
 

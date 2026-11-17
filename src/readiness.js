@@ -88,12 +88,13 @@ function model(state, today) {
   };
 }
 
-const PERSON_LINES = (p) => [
+const PERSON_LINES = (p0, priv) => { const p = p0.private && priv && priv[p0.id] ? { ...p0, ...priv[p0.id] } : p0; return PERSON_LINES0(p).concat(p0.private && !(priv && priv[p0.id]) ? [["Allergies and health", "kept private by the person who added them"]] : []); };
+const PERSON_LINES0 = (p) => [
   ["Allergies", p.allergies], ["Blood type", p.bloodType], [p.kind === "pet" ? "Health" : "Health", p.medical],
   [p.kind === "pet" ? "Vet" : "Doctor", p.doctor], ["Needs", p.needs], ["Good to know", p.things], ["Phone", p.phone],
 ].filter(([, v]) => v && String(v).trim());
 
-export function emergencySheetText(state, today) {
+export function emergencySheetText(state, today, priv) {
   const m = model(state, today);
   const dash = (v) => (v && String(v).trim() ? String(v) : "(not set)");
   const L = [];
@@ -101,7 +102,7 @@ export function emergencySheetText(state, today) {
   const ppl = state.people || [];
   if (ppl.length) {
     L.push("PEOPLE AND PETS");
-    for (const p of ppl) { L.push(`  ${p.name} (${p.kind})`); for (const [k, v] of PERSON_LINES(p)) L.push(`    ${k}: ${v}`); }
+    for (const p of ppl) { L.push(`  ${p.name} (${p.kind})`); for (const [k, v] of PERSON_LINES(p, priv)) L.push(`    ${k}: ${v}`); }
     L.push("");
   }
   L.push("CONTACTS");
@@ -122,7 +123,7 @@ export function emergencySheetText(state, today) {
   return L.join("\n");
 }
 
-export function emergencySheetHTML(state, today) {
+export function emergencySheetHTML(state, today, priv) {
   const m = model(state, today);
   const dash = (v) => (v && String(v).trim() ? esc(v) : '<span class="muted">(not set)</span>');
   const contacts = m.contacts.length
@@ -141,7 +142,7 @@ export function emergencySheetHTML(state, today) {
     : "";
   const ppl = state.people || [];
   const peopleHtml = ppl.length
-    ? `<h2>People and pets</h2>${ppl.map((p) => `<div class="person"><strong>${esc(p.name)}</strong> (${esc(p.kind)})<ul>${PERSON_LINES(p).map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`).join("")}</ul></div>`).join("")}`
+    ? `<h2>People and pets</h2>${ppl.map((p) => `<div class="person"><strong>${esc(p.name)}</strong> (${esc(p.kind)})<ul>${PERSON_LINES(p, priv).map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`).join("")}</ul></div>`).join("")}`
     : "";
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

@@ -48,3 +48,9 @@ Supabase's built-in sender is for testing: it is limited to a few emails an hour
 ## Database checks
 
 `supabase/tests/join_and_limits.test.sql` checks joining, the hourly try limit, direct-write refusals and the crash-report cap. Paste it in the SQL editor after `schema.sql`; it ends with a deliberate error so nothing is kept, and the expected result text is at the top of the file.
+
+## Roles, join notices and private notes
+
+- **View-only members:** the owner can invite someone as view-only (You, Account, Household, Invite to view only) or switch a member with Make view-only / Allow editing. The database refuses their writes (policy `is_editor`), the app also shows a banner.
+- **Join notifications:** `accept_invite_v2` adds a row to `join_notices`; the cron job `send-join-notices` (every 5 minutes) calls `send-reminders?joins=1`, which pushes "X joined your household" to the other members who turned reminders on.
+- **Private family notes:** allergies and health notes of a Family profile can be kept private. They live in `person_private` (no direct access; only the three `*_private_*` functions), one row per account, so other members never receive them and they are not in shared backups.

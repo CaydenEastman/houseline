@@ -25,6 +25,7 @@ export const PEOPLE_MAX = 20;
 export const PERSON_KINDS = ["adult", "child", "pet"];
 export const PERSON_KIND_LABEL = { adult: "Adult", child: "Child", pet: "Pet" };
 export const BLOOD_TYPES = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+export const PERSON_PRIVATE_FIELDS = ["allergies", "medical"];
 export const PERSON_TEXT = ["phone", "allergies", "medical", "doctor", "things", "needs"];
 export const PERSON_LIMIT = { phone: 60, allergies: 300, medical: 500, doctor: 200, things: 500, needs: 300 };
 
@@ -736,6 +737,8 @@ function normalizePerson(raw) {
   if (!BLOOD_TYPES.includes(bloodType)) throw new Error("Blood type isn't one of the usual types");
   const out = { id: String(raw.id), name: str(raw.name, "Name", LIMITS.name, { required: true }), kind, bloodType };
   for (const k of PERSON_TEXT) out[k] = str(raw[k], k[0].toUpperCase() + k.slice(1), PERSON_LIMIT[k]);
+  // "private": allergies and health notes live in a per-account table instead of the shared household data.
+  if (raw.private === true) { out.private = true; out.allergies = ""; out.medical = ""; }
   return out;
 }
 

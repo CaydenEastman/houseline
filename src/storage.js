@@ -96,6 +96,7 @@ export function validateState(s) {
       need(typeof x.name === "string" && x.name.trim() !== "" && x.name.length <= LIMITS.name, `${p}.name must be 1-${LIMITS.name} characters`);
       need(PERSON_KINDS.includes(x.kind), `${p}.kind is invalid`);
       need(BLOOD_TYPES.includes(x.bloodType), `${p}.bloodType is invalid`);
+      need(x.private === undefined || typeof x.private === "boolean", `${p}.private must be true or false`);
       for (const k of PERSON_TEXT) need(strMax(x[k], PERSON_LIMIT[k]), `${p}.${k} must be a string of at most ${PERSON_LIMIT[k]} characters`);
     });
   }

@@ -32,8 +32,10 @@ function paint(container, build, doc) {
   }
 }
 
+let privLoaded = false;
 export function render(container, ctx) {
   const rerender = () => render(container, ctx);
+  if (!privLoaded && typeof ctx.privateApi === "function" && ctx.privateApi()) { privLoaded = true; Promise.resolve(ctx.loadPrivate()).then(() => rerender()).catch(() => {}); }
   paint(container, () => build(ctx, rerender), ctx.doc);
 }
 
@@ -273,7 +275,7 @@ function infoPanel(ctx, state, rerender) {
 function sheetPanel(ctx, state, today, rerender) {
   const { h } = ctx;
   let text = "";
-  try { text = emergencySheetText(state, today); } catch (e) { text = `Couldn't build the sheet: ${e.message}`; }
+  try { text = emergencySheetText(state, today, ctx.privatePeople ? ctx.privatePeople() : null); } catch (e) { text = `Couldn't build the sheet: ${e.message}`; }
   const say = (m, fk) => { S.sheetMsg = m; S.pending = fk; rerender(); };
   const copy = async () => {
     try {
@@ -285,7 +287,7 @@ function sheetPanel(ctx, state, today, rerender) {
   };
   const download = async () => {
     let ok = false;
-    try { ok = await ctx.saveFile(`emergency-sheet-${today}.html`, emergencySheetHTML(state, today), "text/html"); } catch { ok = false; }
+    try { ok = await ctx.saveFile(`emergency-sheet-${today}.html`, emergencySheetHTML(state, today, ctx.privatePeople ? ctx.privatePeople() : null), "text/html"); } catch { ok = false; }
     say(ok ? "Downloaded. Open the file, then press Ctrl+P (Cmd+P on a Mac) to print or save as PDF."
       : "Downloading isn't available here, or was cancelled. Use Copy text instead.", "v-sheet-dl");
   };

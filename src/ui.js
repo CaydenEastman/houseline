@@ -167,6 +167,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   }
 
   // A person invited as "view only" can look at everything but not change it (the database refuses their saves too).
+  let privateCache = null;
   let viewOnly = false;
   try { viewOnly = doc.defaultView.localStorage.getItem("motH.viewOnly") === "1"; } catch { /* ignore */ }
   function commit(next, message, { undoable = true } = {}) {
@@ -247,6 +248,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     },
     personName: (id) => personName(id),
     editCompletion: (c, trigger) => openEditCompletion(c, trigger),
+    // Per-account private notes for family profiles (allergies, health). Only the account that wrote them can read them.
+    privateApi: () => { const a = authOf(); const api = hhApi(); return a && a.session && a.session() && api && api.privateGet ? api : null; },
+    privatePeople: () => privateCache,
+    loadPrivate: async () => {
+      const api = ctx.privateApi(); if (!api) return null;
+      try { privateCache = (await api.privateGet()) || {}; } catch { /* offline: keep what we had */ }
+      return privateCache;
+    },
     setView: (id, focus) => setView(id, !!focus),
     // Opens the same "Complete task" dialog as the Done button on the Tasks tab; unknown ids are ignored.
     completeTask: (taskId) => {
