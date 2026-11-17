@@ -702,3 +702,15 @@ revoke all on function public.get_private_people(), public.set_private_person(te
 grant execute on function public.get_private_people(), public.set_private_person(text, jsonb), public.delete_private_person(text) to authenticated;
 -- Join notices are sent by the send-reminders function (?joins=1) from a pg_cron job every 5 minutes:
 --   select cron.schedule('send-join-notices', '*/5 * * * *', <same net.http_post as send-reminders-hourly, url ...?joins=1>);
+
+-- Old app versions: an old copy of the app that doesn't know a newer top-level field (like "people") saves the main
+-- household doc without it. On every update of that doc, keep any top-level field the new data leaves out.
+create or replace function public.docs_keep_keys() returns trigger language plpgsql set search_path = '' as $$
+begin
+  if new.path = 'household/main' and jsonb_typeof(old.data) = 'object' and jsonb_typeof(new.data) = 'object' then
+    new.data := old.data || new.data;
+  end if;
+  return new;
+end $$;
+drop trigger if exists docs_keep_keys on public.docs;
+create trigger docs_keep_keys before update on public.docs for each row execute function public.docs_keep_keys();
