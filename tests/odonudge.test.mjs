@@ -46,3 +46,14 @@ test("Today offers the home-age ideas only after a few finished tasks and until 
   assert.equal(await has(mk(3)), true);
   assert.equal(await has(mk(3, { homeAge: "mid" })), false);
 });
+
+test("while a dialog is open the page behind it is locked, and it unlocks when closed", async () => {
+  const doc = makeDocument();
+  await mount(doc, { store: store(), state: st("2026-06-10"), today: "2026-06-15" });
+  const root = doc.documentElement;
+  if (!root || !root.classList) return; // the stub DOM may not model the root element
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync("styles.css", "utf8");
+  assert.match(css, /html\.dlg-open[^{]*\{[^}]*overflow:\s*hidden/);
+  assert.match(css, /dialog\s*\{\s*overscroll-behavior:\s*contain/);
+});

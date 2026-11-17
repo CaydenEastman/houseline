@@ -317,3 +317,7 @@ body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 .nav-more-list[hidden] { display: none; }
 .nav-btn.nav-has-current { color: var(--brand); border-top-color: var(--brand); }
 .tour-list { margin: .6rem 0 1rem; padding-left: 1.2rem; display: grid; gap: .5rem; }
+
+/* A dialog scrolls on its own: no scroll chaining to the page behind it, and the page stays put while it is open. */
+dialog { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+html.dlg-open, html.dlg-open body { overflow: hidden; overscroll-behavior: none; }

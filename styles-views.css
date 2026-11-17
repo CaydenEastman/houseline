@@ -400,3 +400,4 @@ dialog *, .add-grid > * { min-width: 0; }
 
 .v-panel .row { display: flex; gap: .5rem; align-items: center; }
 .v-panel .row input { flex: 1 1 auto; min-width: 0; }
+.v-pre { overscroll-behavior: contain; }

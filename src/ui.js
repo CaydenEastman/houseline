@@ -236,7 +236,14 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
   };
 
   // ---------- dialogs ----------
+  // While a dialog is open the page behind it must not scroll (on phones a touch scroll chains through to it).
+  const syncScrollLock = () => {
+    const anyOpen = Object.values(els).some((d) => d && d.open);
+    const root = doc.documentElement;
+    if (root && root.classList) { if (anyOpen) root.classList.add("dlg-open"); else root.classList.remove("dlg-open"); }
+  };
   function afterClose(dlg) {
+    syncScrollLock();
     const cb = dlg._onClose; dlg._onClose = null;
     const ret = dlg._ret; dlg._ret = null;
     if (cb) cb();
@@ -258,6 +265,7 @@ export async function mount(doc, { store, state: initial, persistent = true, loa
     dlg._onClose = onClose || null;
     dlg.replaceChildren(h("div", { class: "dialog-body" }, content));
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    syncScrollLock();
     const f = focus ? dlg.querySelector(focus) : null;
     if (f) f.focus();
   }
